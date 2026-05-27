@@ -1,0 +1,40 @@
+[package]
+name = "cs-interview-coach"
+version = "0.1.0"
+description = "Local-first CS interview knowledge coach"
+authors = ["Christina Jia"]
+edition = "2021"
+
+[lib]
+name = "cs_interview_coach_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Storage
+redb = "2"
+
+# Title autocomplete (FST prefix tree)
+fst = "0.4"
+
+# Time, IDs, errors, paths
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+dirs = "5"
+
+# M2 will add:
+#   tantivy = "0.22"      ← BM25 full-text
+#   fastembed = "..."     ← BGE-M3 local embeddings
+#   hnsw_rs = "..."       ← HNSW vector index
+#   jieba-rs = "..."      ← Chinese tokenization
+#   pdfium-render = "..." ← PDF parsing

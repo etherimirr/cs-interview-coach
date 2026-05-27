@@ -1,0 +1,31 @@
+# Node
+node_modules/
+.svelte-kit/
+build/
+package/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# OS / Editor
+.DS_Store
+*.swp
+.idea/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Vite cache
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Local user data (knowledge base lives in ~/Library/Application Support)
+*.redb
+
+# Imports — derived from personal interview-prep materials, potentially
+# copyrighted. Not pushed publicly by default. Keep imports/README.md for
+# format reference. Owner may opt-in per file.
+imports/*.json

@@ -1,0 +1,229 @@
+# CS Interview Coach — 种子分类树 v0.2
+# 锁死前 1-2 级；叶节点可由 LLM 提议 + 用户审核新增（决策 6）
+# 4 大组 / 20 顶层 / 100+ 子节点
+
+version: "0.2"
+locked_levels: 2     # 第 1、2 级用户可见不可删；3 级及以下可扩
+
+groups:
+  - id: A
+    name: 计算机基础
+    topics: [1, 2, 3, 4, 5]
+  - id: B
+    name: 工程能力
+    topics: [6, 7, 8, 9, 10]
+  - id: C
+    name: 数学基础
+    topics: [11]
+  - id: D
+    name: AI / ML
+    topics: [12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+topics:
+  # ─────────── A. 计算机基础 ───────────
+  - id: 1
+    name: 数据结构与算法
+    short: DSA
+    children:
+      - { id: 1.1, name: 线性结构, hint: "数组/链表/栈/队列/堆/单调栈队列" }
+      - { id: 1.2, name: 树,      hint: "二叉树/BST/AVL/红黑/Trie/线段树/Skip List" }
+      - { id: 1.3, name: 图,      hint: "表示/BFS/DFS/最短路/MST/拓扑/网络流" }
+      - { id: 1.4, name: 哈希,    hint: "开放寻址/链地址/一致性哈希/布隆/CuckooFilter" }
+      - { id: 1.5, name: 算法范式, hint: "DP/贪心/分治/回溯/双指针/滑窗/二分" }
+      - { id: 1.6, name: 字符串,  hint: "KMP/Manacher/AC自动机/后缀数组/Trie" }
+      - { id: 1.7, name: 复杂度分析, hint: "时间/空间/摊销/主定理" }
+
+  - id: 2
+    name: 操作系统
+    short: OS
+    children:
+      - { id: 2.1, name: 进程与线程, hint: "调度/上下文/IPC/协程" }
+      - { id: 2.2, name: 同步,       hint: "锁/信号量/条件变量/无锁/MESI/内存序" }
+      - { id: 2.3, name: 内存,       hint: "虚拟内存/页表/分配器/GC/mmap" }
+      - { id: 2.4, name: 文件系统与 IO, hint: "inode/页缓存/零拷贝/io_uring/AIO" }
+      - { id: 2.5, name: 系统调用与中断, hint: "陷阱/上下文切换/软硬中断" }
+
+  - id: 3
+    name: 计算机网络
+    short: Network
+    children:
+      - { id: 3.1, name: TCP/IP,    hint: "握手/挥手/拥塞控制/重传/TIME_WAIT" }
+      - { id: 3.2, name: HTTP/HTTPS, hint: "1.1/2/3 QUIC/TLS/HSTS" }
+      - { id: 3.3, name: DNS/CDN/LB, hint: "解析/缓存/CDN 调度/L4 L7 负载" }
+      - { id: 3.4, name: Socket 编程模型, hint: "BIO/NIO/AIO/epoll/kqueue/io_uring" }
+
+  - id: 4
+    name: 数据库
+    short: DB
+    children:
+      - { id: 4.1, name: 关系模型与 SQL,  hint: "范式/JOIN/子查询/窗口/执行计划" }
+      - { id: 4.2, name: 索引,           hint: "B+树/LSM/哈希/倒排/向量/自适应哈希" }
+      - { id: 4.3, name: 事务,           hint: "ACID/MVCC/隔离级别/快照/2PC" }
+      - { id: 4.4, name: 存储引擎,        hint: "InnoDB/RocksDB/WAL/checkpoint" }
+      - { id: 4.5, name: 分布式数据库,    hint: "分片/复制/共识/CAP/PACELC/Raft" }
+      - { id: 4.6, name: NoSQL/KV/文档/时序/向量, hint: "Redis/MongoDB/InfluxDB/Milvus" }
+
+  - id: 5
+    name: 计算机体系结构
+    short: Architecture
+    children:
+      - { id: 5.1, name: CPU,        hint: "流水线/乱序/分支预测/SIMD/多发射" }
+      - { id: 5.2, name: 缓存,       hint: "多级 cache/MESI/false sharing/prefetch" }
+      - { id: 5.3, name: 内存系统,    hint: "NUMA/对齐/带宽/HBM" }
+      - { id: 5.4, name: GPU 架构,    hint: "SM/warp/tensor core/shared mem/coalesce" }
+      - { id: 5.5, name: 性能分析,    hint: "profiling/roofline/perf/Nsight" }
+
+  # ─────────── B. 工程能力 ───────────
+  - id: 6
+    name: 系统设计
+    short: SystemDesign
+    children:
+      - { id: 6.1, name: 设计原则,    hint: "SOLID/DRY/YAGNI/Law of Demeter" }
+      - { id: 6.2, name: 架构模式,    hint: "单体/微服务/event-driven/CQRS/saga" }
+      - { id: 6.3, name: 高并发,      hint: "缓存/限流/熔断/队列/异步/读写分离" }
+      - { id: 6.4, name: 经典题,      hint: "短链/朋友圈/打车/IM/秒杀/feed/Twitter/搜索" }
+      - { id: 6.5, name: 可观测性,    hint: "日志/指标/链路/告警/SLO" }
+
+  - id: 7
+    name: 编程语言
+    short: Languages
+    children:
+      - { id: 7.1, name: Python, hint: "GIL/asyncio/类型/打包/CPython 内核" }
+      - { id: 7.2, name: C++,    hint: "内存/模板/RAII/并发/STL/move 语义" }
+      - { id: 7.3, name: Java/Go, hint: "按需扩展" }
+
+  - id: 8
+    name: 大数据与流处理
+    short: BigData
+    children:
+      - { id: 8.1, name: 批处理,      hint: "MapReduce/Spark/SQL on Hadoop" }
+      - { id: 8.2, name: 流处理,      hint: "Flink/Kafka Streams/exactly-once" }
+      - { id: 8.3, name: 消息队列,    hint: "Kafka/Pulsar/RocketMQ/分区/消费组" }
+      - { id: 8.4, name: 数仓/OLAP,   hint: "Hive/Presto/ClickHouse/Doris/StarRocks" }
+      - { id: 8.5, name: 数据湖,      hint: "Iceberg/Delta/Hudi" }
+
+  - id: 9
+    name: 云原生与 DevOps
+    short: CloudNative
+    children:
+      - { id: 9.1, name: 容器,        hint: "Docker/runc/containerd/镜像分层" }
+      - { id: 9.2, name: 编排,        hint: "K8s/Helm/Operator/Pod/Service" }
+      - { id: 9.3, name: 服务治理,    hint: "服务网格/Istio/API 网关" }
+      - { id: 9.4, name: CI/CD,       hint: "GitHub Actions/Argo/蓝绿/金丝雀" }
+      - { id: 9.5, name: IaC,         hint: "Terraform/Pulumi/Crossplane" }
+
+  - id: 10
+    name: 安全
+    short: Security
+    children:
+      - { id: 10.1, name: 密码学基础,  hint: "对称/非对称/哈希/签名/MAC" }
+      - { id: 10.2, name: Web 安全,    hint: "XSS/CSRF/SQLi/SSRF/CORS" }
+      - { id: 10.3, name: 认证授权,    hint: "OAuth2/OIDC/JWT/RBAC/ABAC" }
+      - { id: 10.4, name: 系统/网络安全, hint: "TLS/防火墙/DDoS/零信任" }
+
+  # ─────────── C. 数学基础 ───────────
+  - id: 11
+    name: 数学
+    short: Math
+    children:
+      - { id: 11.1, name: 线性代数,    hint: "矩阵/特征值/SVD/张量/求导" }
+      - { id: 11.2, name: 概率与统计,  hint: "分布/MLE/MAP/贝叶斯/假设检验/CLT" }
+      - { id: 11.3, name: 微积分与优化, hint: "梯度/海森/凸/拉格朗日/KKT" }
+      - { id: 11.4, name: 信息论,      hint: "熵/交叉熵/KL/互信息/编码" }
+      - { id: 11.5, name: 数值方法,    hint: "稳定性/精度/收敛/迭代" }
+
+  # ─────────── D. AI / ML ───────────
+  - id: 12
+    name: 机器学习
+    short: ML
+    children:
+      - { id: 12.1, name: 监督学习,    hint: "线性/树/SVM/集成/Boosting" }
+      - { id: 12.2, name: 无监督,      hint: "聚类/降维/异常检测" }
+      - { id: 12.3, name: 评估,        hint: "P/R/F1/AUC/CV/过拟合/校准" }
+      - { id: 12.4, name: 特征工程,    hint: "编码/分桶/交叉/选择/泄漏" }
+      - { id: 12.5, name: 模型解释,    hint: "SHAP/LIME/PDP/反事实" }
+
+  - id: 13
+    name: 深度学习
+    short: DL
+    children:
+      - { id: 13.1, name: 基础,        hint: "BP/优化器/正则/归一化/初始化" }
+      - { id: 13.2, name: CNN 基础,    hint: "卷积/池化/感受野/参数共享" }
+      - { id: 13.3, name: RNN 家族,    hint: "RNN/LSTM/GRU/梯度消失" }
+      - { id: 13.4, name: Attention/Transformer, hint: "Self-attn/MHA/位置编码" }
+      - { id: 13.5, name: 损失与训练技巧, hint: "CE/对比/focal/标签平滑/混合精度" }
+
+  - id: 14
+    name: 自然语言处理
+    short: NLP
+    children:
+      - { id: 14.1, name: 文本表示,    hint: "word2vec/glove/fasttext/subword" }
+      - { id: 14.2, name: 序列建模,    hint: "RNN/CRF/seq2seq" }
+      - { id: 14.3, name: 预训练模型,  hint: "BERT/RoBERTa/T5/ELECTRA" }
+      - { id: 14.4, name: 经典任务,    hint: "NER/分类/QA/摘要/翻译" }
+      - { id: 14.5, name: 中文 NLP,    hint: "分词/词性/句法/中文 tokenizer" }
+
+  - id: 15
+    name: 计算机视觉
+    short: CV
+    children:
+      - { id: 15.1, name: 经典 CNN,    hint: "AlexNet/VGG/ResNet/EfficientNet/MobileNet" }
+      - { id: 15.2, name: 目标检测,    hint: "YOLO 全系/DETR/Faster-RCNN/RT-DETR" }
+      - { id: 15.3, name: 分割,        hint: "U-Net/Mask-RCNN/SAM/SegFormer" }
+      - { id: 15.4, name: 视觉 Transformer, hint: "ViT/Swin/DINOv2/MAE" }
+      - { id: 15.5, name: 生成,        hint: "GAN/VAE/Diffusion/SD/Flux" }
+
+  - id: 16
+    name: 强化学习
+    short: RL
+    children:
+      - { id: 16.1, name: 基础,        hint: "MDP/Bellman/value/policy iteration" }
+      - { id: 16.2, name: Q 系列,      hint: "DQN/Double/Dueling/Rainbow" }
+      - { id: 16.3, name: 策略梯度,    hint: "REINFORCE/A2C/PPO/SAC/TD3" }
+      - { id: 16.4, name: RLHF/DPO/GRPO, hint: "对齐方法 / reward modeling" }
+      - { id: 16.5, name: Model-based, hint: "MuZero/Dreamer/world model" }
+
+  - id: 17
+    name: 多模态
+    short: Multimodal
+    children:
+      - { id: 17.1, name: 视觉-语言对齐, hint: "CLIP/SigLIP/BLIP" }
+      - { id: 17.2, name: 视觉语言模型,  hint: "LLaVA/Qwen-VL/InternVL/GPT-4V" }
+      - { id: 17.3, name: 音频-语言,    hint: "Whisper/SeamlessM4T/AudioLM" }
+      - { id: 17.4, name: 视频理解,     hint: "VideoMAE/Video-LLaVA" }
+      - { id: 17.5, name: 统一多模态生成, hint: "Sora/VEO/Stable Video" }
+
+  - id: 18
+    name: LLM / Agent
+    short: LLM
+    children:
+      - { id: 18.1, name: Transformer 内核, hint: "Attention/KV cache/MoE/MLA/GQA" }
+      - { id: 18.2, name: 预训练,           hint: "data/scaling law/loss/curriculum" }
+      - { id: 18.3, name: 后训练,           hint: "SFT/RLHF/DPO/GRPO/RLAIF" }
+      - { id: 18.4, name: RAG,              hint: "chunk/embedding/重排/评估/HyDE" }
+      - { id: 18.5, name: Agent,            hint: "planning/tools/memory/multi-agent" }
+      - { id: 18.6, name: Agent 评估与可观测性, hint: "★ 你的 PhD 方向；trace/eval/replay" }
+
+  - id: 19
+    name: 推荐 / 搜索 / 广告
+    short: RecSysSearchAds
+    children:
+      - { id: 19.1, name: 召回,        hint: "双塔/向量/i2i/u2i/SwingI2I/in-batch neg" }
+      - { id: 19.2, name: 粗排/精排,   hint: "MMOE/PLE/序列特征/特征交叉" }
+      - { id: 19.3, name: 重排/多目标, hint: "PRM/SetRank/DLCM/多样性/MMR" }
+      - { id: 19.4, name: 经典模型,    hint: "FM/Wide&Deep/DIN/DeepFM/SIM/AutoInt" }
+      - { id: 19.5, name: 序列推荐,    hint: "SASRec/BERT4Rec/生成式推荐 TIGER" }
+      - { id: 19.6, name: 搜索,        hint: "query 理解/相关性/向量检索/语义匹配" }
+      - { id: 19.7, name: 广告,        hint: "CTR/CVR/出价/拍卖/uplift" }
+      - { id: 19.8, name: 评估,        hint: "AUC/GAUC/NDCG/线上 A/B/因果" }
+
+  - id: 20
+    name: AI 工程化
+    short: AIEng
+    children:
+      - { id: 20.1, name: 训练框架,    hint: "★ PyTorch/JAX/DDP/FSDP/DeepSpeed/Megatron" }
+      - { id: 20.2, name: 微调,        hint: "★ LoRA/QLoRA/PEFT/全参/Reft" }
+      - { id: 20.3, name: 压缩,        hint: "★ 量化/蒸馏/剪枝/Speculative Decoding" }
+      - { id: 20.4, name: 推理引擎,    hint: "★ vLLM/SGLang/TensorRT-LLM/llama.cpp" }
+      - { id: 20.5, name: 边缘部署,    hint: "★ Jetson/Triton/ONNX/CoreML/MLX" }
+      - { id: 20.6, name: MLOps,       hint: "W&B/MLflow/feature store/model registry" }
