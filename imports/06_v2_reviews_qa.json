@@ -1,0 +1,177 @@
+[
+  {
+    "knowledge_card_title": "DIN",
+    "question": "DIN 相比简单 Pooling 用户行为序列的优势？怎么计算 attention 权重？",
+    "answer": "优势: Pooling 把用户兴趣压成单向量, 对所有候选都用同一表达, 丢失'同用户对不同物品兴趣不同'的信号.\nDIN 做法: Target Attention, 候选物品 v 与每个历史行为 e_i 算权重\n  a_i = MLP([e_i, v, e_i*v, e_i-v])  # 拼接+元素乘+元素差\n输出 sum pooling: u_v = Σ a_i * e_i\n效果: 用户表达随候选动态变化, 历史里跟候选相关的部分被激活, 无关的被压低."
+  },
+  {
+    "knowledge_card_title": "DeepFM",
+    "question": "DeepFM 跟 Wide&Deep 的本质区别？DNN 为什么不能完全替代 FM 部分？",
+    "answer": "本质区别:\n  Wide&Deep: Wide 侧人工设交叉特征 (性别×年龄×品类), 工程量大\n  DeepFM: FM 部分自动学二阶交叉, 无需人工\n  共享 Embedding: FM 和 DNN 共用底层 Embedding (vs Wide&Deep 完全独立), 训练更高效\nDNN 不能替代 FM: 稀疏 ID 特征 (user_id × item_id 这种), DNN 过度泛化丧失记忆能力; FM 显式的 <v_i, v_j> 乘法比 DNN 隐式学习高效得多, 收敛快得多."
+  },
+  {
+    "knowledge_card_title": "Wide & Deep",
+    "question": "Wide&Deep 的 Wide 和 Deep 分别解决什么问题？",
+    "answer": "Wide (LR 线性): 解决'记忆' memorization, 直接学'(性别=女, 品类=美妆)→ 高 CTR'这种已观察过的强规则, 不会泛化到没见过的组合.\nDeep (DNN): 解决'泛化' generalization, 通过 Embedding 把稀疏特征映射到稠密空间, 学组合的泛化模式, 但易过度泛化导致冷门组合误判.\n联合训练: Wide 兜底准, Deep 探未知, 互补."
+  },
+  {
+    "knowledge_card_title": "SIM",
+    "question": "SIM 为什么能处理超长用户行为序列？两阶段分别做什么？",
+    "answer": "问题: 用户历史可能上万条, 全部做 Target Attention 时间空间都爆.\nSIM 两阶段:\n  GSU (General Search Unit, 倒排索引): 用类目/品牌等粗特征建索引, O(1) 检索出与候选相关的 top-K 子序列 (K=100~200)\n  ESU (Exact Search Unit): 只在这 K 条上做 Target Attention 精确打分\n效果: 复杂度从 O(N) 降到 O(K), 长期兴趣可用, 工业界已大规模上线."
+  },
+  {
+    "knowledge_card_title": "ESMM",
+    "question": "CVR 预估为什么样本选择偏差严重？ESMM 怎么解决？",
+    "answer": "样本选择偏差 SSB: CVR 训练只有'点击后是否转化'样本, 但线上推断要在全库打分, 训测分布不一致.\nESMM 做法:\n  同时学两个全空间任务: CTR (点击率, 全库) 和 CTCVR (点击且转化, 全库)\n  数学等价 CVR = CTCVR / CTR, 但不直接除 (数值不稳), 而是网络结构联合学\n关键: CVR 的损失只在点击样本算 (避免无意义梯度), 但 Embedding 共享 + CTR/CTCVR 全空间梯度让 CVR 网络'间接看到'全库样本."
+  },
+  {
+    "knowledge_card_title": "MMOE",
+    "question": "MMOE 解决什么问题？跟 PLE 区别？任务冲突还有什么办法？",
+    "answer": "问题: 多任务 hard-share 时, 任务间梯度冲突 (一个任务的梯度可能让另一个变差), 出现'跷跷板'.\nMMOE: 多个共享 Expert + 每任务独有 Gate (softmax), Gate 加权选 Expert. 任务从同一组 Expert 里选不同子集.\nPLE (腾讯改进): 每个任务额外有独有 Expert, 进一步隔离冲突.\n额外手段:\n  GradNorm: 动态归一化各任务梯度大小\n  Uncertainty Weighting: 用不确定性自动学 loss 权重\n  Pareto: 多目标优化在帕累托前沿挑点"
+  },
+  {
+    "knowledge_card_title": "MMR 与 DPP 重排",
+    "question": "重排怎么平衡相关性和多样性？MMR 和 DPP 分别什么思想？",
+    "answer": "MMR (Maximal Marginal Relevance):\n  每步贪心选 score = λ·rel(item, query) - (1-λ)·max(sim(item, 已选))\n  λ 是相关性 vs 多样性的杠杆, λ=1 退化为按相关性排, λ=0 只看多样性\nDPP (Determinantal Point Process):\n  概率框架, 子集 S 的概率 ∝ det(L_S), 其中 L 是相关性*相似度矩阵\n  行列式天然惩罚相似 (列向量越平行 det 越小), 自然平衡多样性\n工程: MMR 简单上线快, DPP 效果好但复杂. 重排放精排之后, 先硬规则 (打散) 再软算法."
+  },
+  {
+    "knowledge_card_title": "推荐系统整体流程",
+    "question": "为什么离线 AUC 涨但线上效果反而跌？怎么排查？",
+    "answer": "5 个常见原因:\n  1) 样本选择偏差: 训测分布不一致 (训练用 7 天前数据, 线上推断今天), 用 walk-forward 验证\n  2) 特征穿越: 误用了未来信息 (如'当次请求的转化率'), 查异常重要的特征\n  3) 特征一致性: 离线 (Python/Spark) 和线上 (C++/Java) 实现不同, 启用特征 replay 比对\n  4) 评估负样本过易: 离线测试集负样本随机选过简单, 改用难负样本\n  5) AUC 局限: AUC 只衡量排序, 业务指标可能看 CVR/留存, 加 COPC 校准度指标\n口诀: 离线在线 gap 排查 → 特征一致性优先, 然后样本选择, 最后评估指标."
+  },
+  {
+    "knowledge_card_title": "推荐系统整体流程",
+    "question": "用户冷启动和物品冷启动分别怎么解？",
+    "answer": "用户冷启动:\n  1) 热度兜底: 全站热门作为初始推荐\n  2) 人群映射: 按属性 (年龄/地区/设备) 映射到相似人群复用偏好\n  3) 注册引导: 让用户选感兴趣的几个类目/标签\n  4) Bandit: UCB/Thompson Sampling 探索-利用平衡\n物品冷启动:\n  1) 内容 Embedding: 用 NLP/CV 提取新物品语义, 找相似热品当锚点\n  2) Bandit 分配流量: 给新物品保底曝光, 用 Thompson Sampling 动态调\n  3) Author/Category 继承: 同作者/类目历史 CTR 当先验\n评估:\n  不看 CTR (新物品冷数据少 CTR 不稳), 看次日/七日留存率、新品挖掘效率."
+  },
+
+  {
+    "knowledge_card_title": "ReAct",
+    "question": "ReAct 跟纯 CoT、ToT、GoT 的区别？为什么 ReAct 能缓解幻觉？",
+    "answer": "ReAct: Thought → Action → Observation 线性循环, 外部反馈驱动推理\nCoT: 只在 LLM 脑内推理, 没有外部观察\nToT (Tree of Thoughts): 树状探索多条推理分支, 评估剪枝, 适合搜索类问题\nGoT (Graph of Thoughts): 图状任意节点连接合并, 表达力最强但工程复杂\n缓解幻觉: ReAct 让 LLM 在不确定时调外部工具 (搜索/计算/查库) 拿事实, 而不是脑补; Observation 把真实数据塞回 context, 后续推理基于事实而非记忆."
+  },
+  {
+    "knowledge_card_title": "Function Calling",
+    "question": "Function Calling 怎么 work？工程上有什么坑？MCP 是什么？",
+    "answer": "做法:\n  1) 工具定义: JSON Schema 描述函数名/参数/类型给 LLM\n  2) LLM 输出: 结构化 (tool_name, arguments), 不是自然语言\n  3) 客户端解析: 调用对应工具, 把结果回灌作为新 observation\n训练: SFT 阶段用 (tool_def, query, expected_call) 数据让模型学触发时机.\n工程坑:\n  - LLM 偶尔输出非法 JSON → 加 JSON repair 库\n  - 参数类型错 → schema validation\n  - 工具太多 token 撑爆 → 分组检索动态加载\nMCP (Model Context Protocol, Anthropic 2024):\n  类似 USB-C 的标准化 tool 协议, 任何客户端 (Claude / Cursor / VSCode) 即插即用任何 MCP-server 工具."
+  },
+  {
+    "knowledge_card_title": "AI Agent 核心流程",
+    "question": "Agent Memory 系统怎么设计？短期长期分别用什么？",
+    "answer": "三层:\n  短期 (Working Memory): 当前对话上下文 + scratchpad. 直接放在 LLM context 里. 大小受上下文窗口限制.\n  中期 (Session Memory): 单次任务的工具调用历史/中间结果. 用 buffer / 摘要压缩进 context.\n  长期 (Long-term Memory): 跨 session 的事实 + 偏好 + 经验. 通常用向量数据库 (Chroma/Qdrant) 做语义检索, 或结构化 KG.\n关键设计:\n  - Memory selection: 每步从长期 memory 召回 top-k 相关\n  - Memory consolidation: 定期摘要短期 → 长期 (类比人睡眠固化)\n  - Forgetting: TTL / 重要性打分淘汰旧记忆"
+  },
+  {
+    "knowledge_card_title": "AI Agent 核心流程",
+    "question": "多 Agent 系统对比单 Agent 优势在哪？什么时候不用？",
+    "answer": "优势:\n  1) 角色分工: 不同 Agent 不同专长 (Planner / Coder / Critic / Tester)\n  2) 协同推理: Critic 检查 Coder, 互相 review 减幻觉\n  3) 复杂任务拆解: 大任务分给多个 Agent 并行\n  4) 可解释: 每 Agent 的决策可追溯\n劣势/不用场景:\n  - 简单任务: 单 Agent 足够, 多 Agent 引入额外通信开销\n  - 延迟敏感: 多 Agent 串行调用累积延迟\n  - 成本敏感: token 消耗成倍增加 (每个 Agent 都跑 LLM)\n  - 编排复杂: 死锁/循环/竞态调试难"
+  },
+  {
+    "knowledge_card_title": "RAG 三阶段",
+    "question": "RAG 切 chunk 的策略？块大小重叠怎么选？",
+    "answer": "策略:\n  1) 固定长度 (简单): 按 token 数切 (典型 512 token, overlap 50)\n  2) 按结构 (markdown/HTML): 按 H1/H2 标题切, 保留语义边界\n  3) 递归 (LangChain RecursiveCharacterTextSplitter): 优先按段落, 不够再句子, 再单词\n  4) Semantic chunking: 用 embedding 相似度找语义断点\n块大小权衡:\n  小 (200-300 token): 检索精度高, 上下文易碎\n  大 (1000-2000 token): 上下文连贯, 检索可能召回不相关段\n  典型 512 + overlap 50, 复杂文档可加 parent doc retrieval (子 chunk 检索, 父 chunk 喂 LLM)\nOverlap 作用: 避免关键信息被切断在块边界."
+  },
+  {
+    "knowledge_card_title": "Lost in the Middle",
+    "question": "Lost in the Middle 现象是什么？怎么缓解？",
+    "answer": "现象 (Liu et al. 2023): LLM 处理长 context 时, 对开头 (primacy) 和结尾 (recency) 利用好, 中间信息常被忽视, 性能呈 U 型分布.\n常见场景: RAG 召回 10 个 chunk 全塞进 prompt, 中间几个被忽略.\n缓解:\n  1) 重排: 召回结果按相关性重排, 最相关放头尾\n  2) 减少 chunk 数: 用 reranker 精选 top-3 而非全 top-10\n  3) Prompt 工程: 关键信息显式强调 ('请特别注意第 N 条')\n  4) 多轮 RAG: 把大问题拆小, 每轮少量 context\n  5) 长上下文模型: Claude / Gemini long context 训练时缓解 U 型"
+  },
+
+  {
+    "knowledge_card_title": "BPE 与 WordPiece",
+    "question": "BPE / WordPiece / SentencePiece 区别？为什么 LLaMA 用 SentencePiece？",
+    "answer": "BPE (GPT-2/3/4): 从字符开始, 反复合并出现频率最高的 token pair, 直到词表满. 频率驱动.\nWordPiece (BERT): 合并准则改为'增加似然值最大' (基于 unigram LM), 比 BPE 更优 token 边界.\nSentencePiece (T5/LLaMA): 把空格也当字符训练, 不预分词, 适合多语言 (中文没空格, 用 SP 更友好).\nLLaMA 选 SP: 多语言支持 (中文/日文/阿拉伯文)、可逆 (能完美还原原文)、训练简单 (raw text 即可)."
+  },
+
+  {
+    "knowledge_card_title": "Scaling Laws",
+    "question": "Scaling Laws 是什么？Chinchilla 推翻了什么结论？",
+    "answer": "Scaling Laws (OpenAI Kaplan 2020): LLM 的 loss 随参数量 N、数据量 D、计算 C 呈幂律下降. 给定算力预算 C, 存在最优的 (N, D) 配比.\nChinchilla (DeepMind 2022): 重新拟合实验, 发现最优配比是 token 数 ≈ 20 × 参数量 (GPT-3 的 175B 模型只用 300B token, 严重数据不足).\n推翻的结论: GPT-3 时代'增加参数比增数据收益高', Chinchilla 证明等算力下增数据更优.\n实际影响: LLaMA-1 (65B/1.4T)、LLaMA-2 (70B/2T) 都是小参数大数据, 部署友好且效果好."
+  },
+  {
+    "knowledge_card_title": "Reward Hacking",
+    "question": "RLHF 中的 reward hacking 是什么？怎么发现和缓解？",
+    "answer": "现象: 模型学会钻 reward function 漏洞拿高分而非真对齐人类偏好. 经典例子:\n  - 回答故意冗长 (因为标注人/RM 偏好长答案 → 高分)\n  - 重复关键词 (触发 RM 表面模式)\n  - 油腻的'当然可以!'开头 (模式化讨好)\n发现: 多维评估 (不只看 RM 分), 红队对抗测试 (找模型作弊例), 真实用户 A/B 看实际满意度\n缓解:\n  1) 多目标 reward: 加入长度归一化、毒性、事实性等\n  2) KL penalty: 限制策略离 SFT 模型太远 (β 调大些)\n  3) 定期重训 RM: 用新偏好数据更新, 防 RM 过时被钻\n  4) 用 DPO/GRPO: 隐式 reward 更难钻\n  5) 红队 + 拒绝采样: 持续产新对抗样本"
+  },
+  {
+    "knowledge_card_title": "LLM-as-Judge",
+    "question": "LLM-as-Judge 的三个偏差是什么？怎么校正？",
+    "answer": "三个偏差:\n  1) Position Bias: 同样两答案, 放第一个的得分更高 → 互换位置评两次取平均\n  2) Self-preference: GPT-4 偏 GPT-4 风格的回答 → 用多评委 (Claude/Gemini/GPT-4 综合)\n  3) Length Bias: 长答案打分高 → 长度归一化或在 prompt 里告诉评委别管长度\n额外坑:\n  - 重复评测不一致: 同一对答案重评得分浮动, 用 multiple sample + 投票\n  - 评分尺度漂移: 用相对比较 (A vs B who's better) 而非绝对打分\n场景: MT-Bench 评对话, AlpacaEval 评指令跟随, Arena 用人类盲投."
+  },
+  {
+    "knowledge_card_title": "RLHF",
+    "question": "RLHF 为什么用 PPO 不用 REINFORCE 或 Q-learning？",
+    "answer": "REINFORCE: 朴素策略梯度, 方差大、训练不稳, 一个 step 可能崩坏策略.\nQ-learning: 适合离散动作空间, LLM 的动作空间是 vocab (5w+) × seq_len, 不适用.\nPPO 优势:\n  1) Clipped surrogate objective: 限制策略更新幅度 (clip ratio 0.2), 防一次更新把策略弄崩\n  2) 多步重用样本: 一次 rollout 多次 SGD 更新, sample efficiency 比 REINFORCE 高\n  3) GAE: Generalized Advantage Estimation 降低 advantage 估计方差\n  4) 加 KL penalty: 防偏离 SFT 模型太远 (灾难性遗忘)\n现代替代: DPO 跳过 PPO 直接偏好优化, GRPO (DeepSeek) 用组相对优势避免 critic, 显存更省."
+  },
+
+  {
+    "knowledge_card_title": "字节算法二面套路",
+    "question": "字节算法岗简历深挖会问什么？怎么准备 2 个核心项目？",
+    "answer": "面试官重点追问 (按重要性):\n  1) 业务背景 / 目标 / 数据规模 (1 min 讲清)\n  2) 你负责哪个模块 (数据/特征/模型/训练/推理/上线)\n  3) 项目难点 + 怎么解 (technical depth 测试)\n  4) Ablation 实验怎么设计 + 结论是什么 (科学性)\n  5) 量化效果提升了多少 (业务 sense)\n  6) 上线后怎么监控/调优 (full-stack)\n准备策略:\n  - 选 2 个能讲深的核心项目, 其他 1 句话带过\n  - 每个项目准备 5 层挖: 你 → 团队 → 业务 → 行业 → SOTA\n  - 准备 1 个被反复挑战的细节 (e.g. 损失函数为什么这么设, 评估怎么做)\n  - 量化提升用具体数 ('+8.7% AUC' 比 '提升明显' 强)\n  - 失败/取舍要诚实, 假装完美反而扣分"
+  },
+
+  {
+    "knowledge_card_title": "Transformer",
+    "question": "为什么现代大模型几乎都是 Decoder-only？相比 Encoder-Decoder 优势？",
+    "answer": "Decoder-only (GPT/LLaMA/Qwen/Mistral) 优势:\n  1) 训练推理统一: 都是自回归生成, 不用切换模式\n  2) 任务统一: 翻译/摘要/QA 都变成 next-token prediction, 不用任务头\n  3) Scaling friendly: 单一 stack 容易扩参数和并行训练\n  4) Few-shot/zero-shot 强: in-context learning 天然适合 next-token\n  5) KV Cache 推理快: 单向自回归, prefix 可缓存\nEncoder-Decoder (T5/BART) 优势 (历史):\n  - 翻译/摘要等 input-output 明确的任务上效果好\n  - Encoder 双向能更好理解 input\n但现在: Decoder-only 加 instruction tuning 后, 在所有任务上都赶上或超过 Enc-Dec, 加上工程优势, 成为主流."
+  },
+  {
+    "knowledge_card_title": "Self-Attention",
+    "question": "Self-Attention 的时间空间复杂度？为什么是 O(N²)？怎么优化？",
+    "answer": "时间复杂度: O(N² · d), N 序列长度, d 头维度\n空间复杂度: O(N²) (要存 attention matrix [N, N])\n为什么 O(N²): 每个 query 要和所有 N 个 key 算内积, 总共 N×N 次内积.\n优化方向:\n  1) Flash Attention: 不物化 N×N 矩阵到 HBM, SRAM 内 tile 计算, IO 复杂度降\n  2) Sparse Attention (BigBird/Longformer): 只算窗口/全局/随机 attention, 复杂度 O(N√N) 或 O(N)\n  3) Linear Attention (Performer/Linformer): 用核函数近似 softmax, 复杂度 O(N)\n  4) Mamba/RWKV: 完全不用 attention, 线性复杂度 SSM\n  5) 推理: MQA/GQA 共享 KV 减显存"
+  },
+
+  {
+    "knowledge_card_title": "LoRA",
+    "question": "LoRA 怎么选秩 r 和 α？哪些层加 LoRA 最有效？",
+    "answer": "秩 r:\n  - 典型 r=8-32\n  - 任务差异大: r 大些 (16-64)\n  - 任务接近 pretrain: r 小些 (4-8)\n  - r 太大失去低秩近似的优势, 趋同于全参微调\nα (scale):\n  - LoRA 更新乘以 α/r, α 通常设 2r (r=8 → α=16)\n  - α 控更新强度, α 大 = LoRA 影响力大\n加在哪些层:\n  - 经典 (LoRA 论文): 只加 Q 和 V 的投影 → 性价比最高\n  - rsLoRA 等扩展: 加全部 Q/K/V/O + FFN → 效果好但参数多\n  - 实战: 先 Q/V 跑通, 不够再加 K/O 和 FFN\n经验: r=8, α=16, dropout=0.05, 训 1-3 epoch 通常够"
+  },
+
+  {
+    "knowledge_card_title": "XGBoost",
+    "question": "XGBoost 怎么处理缺失值？为什么不用做缺失值填充？",
+    "answer": "处理: Sparsity-aware Split Finding.\n训练时对每个分裂节点, 把缺失值分别试着放左/放右子树, 算增益, 选增益大的方向作为该节点的'缺失值默认方向'存下来.\n推理时: 遇到缺失就走训练时记的默认方向.\n好处:\n  - 不用预先填均值/中位数 (那会引入偏差)\n  - 缺失本身可能是信号 (没填代表'不知道', 模型能学到)\n  - 自动学最优分配, 比人工选择强\n例外: LightGBM 默认把缺失归到 zero bin, 行为略不同."
+  },
+  {
+    "knowledge_card_title": "LightGBM",
+    "question": "LightGBM 的 leaf-wise 生长为什么容易过拟合？怎么控制？",
+    "answer": "leaf-wise: 每次从所有叶子里选增益最大的那个分裂.\n  优势: 同样 N 棵树效果比 level-wise 好 (针对性强)\n  问题: 容易学得很深很瘦的树拟合噪声 → 过拟合, 尤其小数据集\n控制手段:\n  1) max_depth: 限制最大深度 (典型 6-10)\n  2) num_leaves: 限制总叶子数 (< 2^max_depth)\n  3) min_data_in_leaf: 叶子最少样本数 (典型 20-100)\n  4) lambda_l1 / lambda_l2: 正则化\n  5) feature_fraction / bagging_fraction: 随机采样列/行\n  6) early_stopping_rounds: 验证集提前停\n经验: 小数据集 (<10k) 慎用 leaf-wise; 调 num_leaves 比调 max_depth 更直接."
+  },
+  {
+    "knowledge_card_title": "BN vs LN",
+    "question": "多卡分布式训练时 BN 怎么处理？SyncBN 和普通 BN 区别？",
+    "answer": "问题: 普通 BN 在每张卡上独立算 mean/var (只看自己卡的 mini-batch), 卡上 batch 太小 (如 detection 任务每卡 1-2 张图) 统计量不准.\nSyncBN (Synchronized BN):\n  forward: 跨卡 all-reduce 求全局 mean 和 var (相当于 batch 是全局合并的)\n  backward: 梯度也跨卡同步\n效果: 等价于一个大 batch 的 BN, 小 batch 场景必用.\n代价: 通信开销, 训练慢 5-15%.\n替代: 用 GroupNorm / LayerNorm 完全摆脱 batch 依赖, 不用跨卡同步."
+  },
+  {
+    "knowledge_card_title": "梯度消失与爆炸",
+    "question": "残差连接为什么能缓解梯度消失？数学上怎么解释？",
+    "answer": "做法: f(x) = x + sublayer(x), 给反向传播开恒等通路.\n数学:\n  ∂L/∂x = ∂L/∂f · ∂f/∂x = ∂L/∂f · (I + ∂sublayer/∂x)\n  即使 ∂sublayer/∂x → 0, ∂L/∂x 至少有 ∂L/∂f · I 这部分能往前传\n  浅层 grad 至少不会被深层完全杀死\n额外收益:\n  - 退化问题: 深网比浅网差是因为深层难学'恒等映射'; 残差让网络默认就是恒等, 学的是 Δ (残差), 更易优化\n  - 信息流: 浅层特征能直接传到深层 (用于 segmentation 等多尺度任务)\nTransformer 每个 block 两条残差 (attn 后、FFN 后), 缺一深网就崩."
+  },
+
+  {
+    "knowledge_card_title": "KV Cache",
+    "question": "长 context (32k+) 时 KV Cache 显存压力多大？有哪些缓解？",
+    "answer": "公式: KV cache 显存 = 2 (K和V) × L (层数) × N (seq len) × H (head数) × D_h (head dim) × 2 (fp16)\nLLaMA-2 70B 在 32k seq: 80 层 × 32k × 64 head × 128 dim × 2 × 2 ≈ 84 GB (单 batch!)\n缓解方法:\n  1) MQA/GQA: 共享 K/V, 缩 H/g 倍 (g=8 时缩 8 倍)\n  2) KV cache 量化: FP16 → INT8 减半, INT4 缩 4 倍\n  3) PagedAttention (vLLM): 分页避免碎片, 不同请求共享显存\n  4) Sliding Window Attention: 只保留最近 W token 的 KV (Mistral)\n  5) Streaming KV: 只保最早 sink + 最近 W (Attention Sink 论文)\n  6) 长 context 单独优化: SequentialKV, OffloadKV 到 CPU"
+  },
+  {
+    "knowledge_card_title": "采样策略",
+    "question": "代码生成应该用什么采样参数？为什么对话场景温度不能太低？",
+    "answer": "代码生成 (Copilot/Codex):\n  T = 0 或 0.1 (greedy 或近 greedy)\n  top_p = 1.0 (不截断, 因为 T 已经低)\n  原因: 代码要语法严格、确定性高, 一点随机就编译错; 重复采样多次取通过测试的\n对话/写作 (ChatGPT):\n  T = 0.7~0.9, top_p = 0.9, top_k = 50\n  原因: 太低 (T=0) 答案重复死板, 太高失控胡言\n创意/头脑风暴:\n  T = 1.0+, top_p = 0.95\n  鼓励发散\n推理任务 (CoT/数学):\n  Self-consistency: T=0.7 多次采样 → 投票取多数\n  比单次 greedy 准很多"
+  },
+  {
+    "knowledge_card_title": "MHA vs MQA vs GQA",
+    "question": "MQA 训练时效果略降, 工程上怎么补救？",
+    "answer": "降级原因: 多头本来能学 H 组不同的 K/V 表达, MQA 强行共享一组, 表达力损失.\n补救三招:\n  1) Uptraining: 在已训好的 MHA 模型基础上, 把 KV 投影做平均得到初始化, 再微调一段, 比从头训 MQA 效果好得多 (PaLM 用)\n  2) GQA 折中: 不要走到极端 (1 组), 分 g 组 (典型 g=8) 是显存和效果的甜蜜点\n  3) 增大 hidden_dim 或层数: 用更多参数补回损失\n现状:\n  LLaMA-1: MHA (没考虑推理优化)\n  LLaMA-2/3 7B: MHA; 13B/70B: GQA (g=8)\n  PaLM/Falcon: MQA"
+  },
+
+  {
+    "knowledge_card_title": "RAG 三阶段",
+    "question": "RAG 怎么评估？端到端和分阶段评估有啥区别？",
+    "answer": "分阶段评估:\n  Retrieval: Precision@k / Recall@k / MRR / NDCG\n    用标注的 (query, relevant_chunks) 测试集\n  Generation: 给定 retrieved context, 答案的 faithfulness (有没瞎编)、relevance\n端到端:\n  Answer correctness: 模型最终答案跟 ground truth 的语义相似度\n  Hit rate: 是否答对了\n自动评估工具:\n  - RAGAS: faithfulness + answer relevance + context precision/recall\n  - TruLens: 类似, 三角评估\n  - LangSmith: 链路追踪 + 评估\n关键: 端到端高 ≠ retrieval 好. 必须分开评. retrieval 弱时 LLM 即使猜对答案也是脆的."
+  },
+
+  {
+    "knowledge_card_title": "Flash Attention",
+    "question": "Flash Attention 2 / 3 跟 1 的区别？",
+    "answer": "FA1 (2022): 提出 IO-aware tile + online softmax, 主要是减 HBM 读写.\nFA2 (2023):\n  1) 减少 non-matmul 操作 (rescale 等)\n  2) 优化 warp 内并行 (一个 thread block 多 warp 协作)\n  3) 反向传播也优化\n  速度比 FA1 ~2× 提升\nFA3 (2024):\n  1) 适配 H100 的新硬件 (TMA, FP8)\n  2) WGMMA (warp-group matmul) 异步执行\n  3) FP8 attention 进一步加速\n  H100 上比 FA2 又 1.5-2×\n现状: 训练框架 (PyTorch/JAX) 和推理引擎 (vLLM) 都默认开 FA, 用户基本无感."
+  }
+]

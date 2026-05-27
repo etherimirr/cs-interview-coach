@@ -1,0 +1,168 @@
+[
+  {
+    "title": "KV Cache",
+    "aliases": ["KV 缓存", "kv cache", "key-value cache"],
+    "topic_ids": ["18.1", "20.4"],
+    "slots": {
+      "definition": [
+        { "text": "Transformer 自回归推理时把每一步的 Key、Value 矩阵缓存下来，下一步只算新 token 的 Q 与历史 K/V 做 attention，避免重算前面所有 token。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q3"}] }
+      ],
+      "mechanism": [
+        { "text": "原始：第 t 步要算 t×t 的 attention，O(t²)；有 KV cache 后每步只算 1×t，整体 O(n²) 降为 O(n) 单步开销。", "cites": [] },
+        { "text": "代价是显存：每层每 head 都要存 [seq_len, d_head] 的 K 和 V；长上下文是显存瓶颈。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "推理加速核心：把重复计算转为查表 / 内存换计算。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q3"}] },
+        { "text": "缓解显存压力的方法：MQA/GQA 共享 KV、KV cache 量化、Paged Attention 分页管理、token 剪枝。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Flash Attention",
+    "aliases": ["FlashAttention", "flash-attn"],
+    "topic_ids": ["18.1", "20.4"],
+    "slots": {
+      "definition": [
+        { "text": "一种 attention 计算 kernel，把 Q/K/V 分 tile 在 SRAM 内做 softmax，避免把 N×N 注意力矩阵物化到 HBM。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q64"}] }
+      ],
+      "mechanism": [
+        { "text": "传统 attention 受 HBM 带宽 bound；FlashAttn 利用 online softmax 算法和 GPU SRAM 分块，IO 复杂度从 O(N²) 降到 O(N²/M)，M 为 SRAM 大小。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q64"}] }
+      ],
+      "interview_points": [
+        { "text": "训练推理都受益；FlashAttn-2 进一步并行优化 warps；FlashAttn-3 适配 H100 Hopper。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "vLLM Paged Attention",
+    "aliases": ["Paged Attention", "vLLM", "PagedAttention"],
+    "topic_ids": ["20.4"],
+    "slots": {
+      "definition": [
+        { "text": "把 KV cache 按物理内存页 (block) 管理，类似 OS 虚拟内存：逻辑序列连续、物理 block 离散，按需分配释放。", "cites": [{"source_id": "github-wdndev", "locator": "06.推理/1.vllm"}] }
+      ],
+      "interview_points": [
+        { "text": "解决传统 KV cache 内存碎片严重、批处理预留过多的问题。同样显存下吞吐提升 2-4×。", "cites": [] },
+        { "text": "支持 continuous batching：请求随时进出 batch，GPU 一直满载。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Speculative Decoding",
+    "aliases": ["投机解码", "speculative decoding", "推测解码"],
+    "topic_ids": ["20.4"],
+    "slots": {
+      "definition": [
+        { "text": "用小的 draft model 先猜出 K 个 token，大 target model 一次性 verify K 个 token；通过的接受、不通过的丢弃。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q61"}] }
+      ],
+      "interview_points": [
+        { "text": "本质：把 verify 一次性 batched 跑，多个 token 共用一次 forward 的延迟。等价输出分布不变。", "cites": [] },
+        { "text": "加速比取决于 draft 命中率；典型 1.5-2× 提速。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "RoPE",
+    "aliases": ["Rotary Position Embedding", "旋转位置编码"],
+    "topic_ids": ["18.1"],
+    "slots": {
+      "definition": [
+        { "text": "把绝对位置信息编成旋转矩阵作用在 Q、K 上：q_i = R_i · q, k_j = R_j · k，使得点积 (R_i q)·(R_j k) 只依赖相对位置 i-j。", "cites": [{"source_id": "github-315386775", "locator": "LLM 章节"}] }
+      ],
+      "mechanism": [
+        { "text": "把 d 维向量两两一组当复数；位置 i 旋转角度 i·θ_k，θ_k = 10000^(-2k/d)。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "为什么现在 LLaMA/Qwen/Mistral 都用：① 相对位置友好；② 长度外推性好（配合 NTK/YaRN 可继续延伸）；③ 不增加可训练参数。", "cites": [{"source_id": "github-315386775", "locator": "LLM 章节"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "MHA vs MQA vs GQA",
+    "aliases": ["Multi-Query Attention", "Grouped-Query Attention", "MHA MQA GQA"],
+    "topic_ids": ["18.1"],
+    "slots": {
+      "comparison": [
+        { "text": "MHA (Multi-Head)：每个 head 独立 Q/K/V；表达力强但 KV cache 占用大。", "cites": [{"source_id": "github-wdndev", "locator": "02.大语言模型架构"}] },
+        { "text": "MQA (Multi-Query)：所有 head 共享一组 K/V，只 Q 多头；KV cache 缩小 H 倍，推理快，但训练效果略降。", "cites": [] },
+        { "text": "GQA (Grouped-Query)：折中，把 H 个 head 分成 g 组共享 K/V；LLaMA-2/3 用 g=8。在 KV 显存和效果间取平衡。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "口诀：MHA 准、MQA 快、GQA 中庸。现代 LLM 部署几乎都用 GQA 或 MQA。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "RLHF",
+    "aliases": ["Reinforcement Learning from Human Feedback", "人类反馈强化学习"],
+    "topic_ids": ["18.3", "16.4"],
+    "slots": {
+      "definition": [
+        { "text": "用人类偏好数据训练对齐 LLM 的三阶段范式：① SFT 让模型会回答；② 训练 reward model 学习人类偏好；③ PPO 用 reward model 反馈 fine-tune LLM。", "cites": [{"source_id": "github-wdndev", "locator": "07.强化学习"}] }
+      ],
+      "interview_points": [
+        { "text": "目的：让模型从'流畅 next-token'变成'符合人类偏好/无害/有用'。", "cites": [] },
+        { "text": "PPO 实现复杂，工程上常用 DPO/GRPO 等无 reward model 替代方案。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "DPO",
+    "aliases": ["Direct Preference Optimization", "直接偏好优化"],
+    "topic_ids": ["18.3", "16.4"],
+    "slots": {
+      "definition": [
+        { "text": "跳过显式 reward model 和 PPO，直接在偏好对 (chosen, rejected) 上做对比 loss 优化策略，等价于隐式 reward 学习。", "cites": [{"source_id": "github-wdndev", "locator": "07.强化学习"}] }
+      ],
+      "comparison": [
+        { "text": "vs RLHF：DPO 流程更简单、训练更稳、显存友好；但对离线偏好数据强依赖、不如 RLHF 灵活。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "现在工业界开源对齐很多直接用 DPO 或后续 GRPO / KTO 变体。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "RAG 三阶段",
+    "aliases": ["RAG", "Retrieval Augmented Generation", "检索增强生成"],
+    "topic_ids": ["18.4"],
+    "slots": {
+      "definition": [
+        { "text": "三阶段：① 文档预处理（切 chunk → embedding → 索引）；② 检索（query → 召回 top-k chunk）；③ 生成（chunk 作为 context 喂给 LLM 生成答案）。", "cites": [{"source_id": "github-wdndev", "locator": "08.检索增强RAG"}] }
+      ],
+      "mechanism": [
+        { "text": "增强环节：多路召回（BM25 + 向量 + 知识图谱）、reranker 重排、HyDE（用 LLM 先生成假设答案再检索）、query 改写。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "RAG vs fine-tune：RAG 适合知识更新快、可溯源；fine-tune 适合改变行为风格。两者可组合。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q97-Q99"}] },
+        { "text": "评估难点：retrieval 的 precision/recall、generation 的 faithfulness 和 answer relevance（用 RAGAS / TruLens 跑）。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "采样策略",
+    "aliases": ["Top-k Top-p", "Temperature", "decoding strategy", "采样温度"],
+    "topic_ids": ["18.1"],
+    "slots": {
+      "definition": [
+        { "text": "Greedy：每步取最大概率，输出确定但易重复；Beam Search：维护 top-k 候选序列，质量高但慢；Sampling：按概率采样，可控随机性。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q40-Q51"}] }
+      ],
+      "mechanism": [
+        { "text": "Temperature T：缩放 logits → softmax(logits/T)；T<1 更尖锐、T>1 更平、T=0 等价 greedy。", "cites": [{"source_id": "github-KalyanKS-NLP", "locator": "Q49"}] },
+        { "text": "Top-k：只在概率前 k 个 token 里采样；Top-p (nucleus)：在累积概率 ≥ p 的 token 里采样，动态截断。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "实际产品常用 T=0.7 + top_p=0.9 + top_k=50 组合；代码生成偏好低 T、对话偏好稍高 T。", "cites": [] }
+      ]
+    }
+  }
+]

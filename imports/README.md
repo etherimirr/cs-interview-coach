@@ -10,8 +10,11 @@ Drop JSON files here and bulk-import via:
 ./src-tauri/target/debug/cs-interview-coach import-reviews imports/your_reviews.json
 ```
 
-**注意**：`imports/*.json` 默认被 `.gitignore` 排除，因为这些通常含个人面经原料的衍生内容（版权敏感）。
-如需推送某个 JSON，单独 `git add -f imports/xxx.json`。
+仓库里已有 10 个 JSON 文件（v1-v4 批次共 139 张知识卡 + 143 张复习卡），来源：
+- `01_pdd_suji.json` / `02_bytedance_finance.json` — 用豆包整理的算法岗笔试/面试要点
+- `03-10_*.json` — 从公开 GitHub repo (LLM Interview / RecSys / DL Awesome / ML Sysdesign 等) 提炼
+
+直接 `import` 即可重建知识库。
 
 ## 格式
 

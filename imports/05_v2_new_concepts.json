@@ -1,0 +1,211 @@
+[
+  {
+    "title": "DIN",
+    "aliases": ["Deep Interest Network", "深度兴趣网络"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "阿里 2018 提出，把用户历史行为序列通过 Target Attention 与候选物品计算相关性，激活与候选相关的历史，做用户兴趣动态表达。", "cites": [{"source_id": "gank-recsys", "locator": "Q7"}] }
+      ],
+      "mechanism": [
+        { "text": "Attention 权重 a_i = MLP(行为_i, 候选, 行为_i × 候选, 行为_i - 候选)，用 sum pooling 加权得到候选相关的兴趣向量。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "对比 Pooling: 用户同一序列对不同候选会产生不同表达 (动态化)，解决'平均兴趣丢细节'问题。", "cites": [{"source_id": "gank-recsys", "locator": "Q7"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "DeepFM",
+    "aliases": ["deepfm"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "华为 2017 提出，FM (二阶特征交叉) + DNN (高阶非线性) 共享 Embedding 的双塔并行结构。", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs Wide&Deep: DeepFM 用 FM 自动学习二阶交互、无需人工特征工程；Wide&Deep 的 wide 部分要手动设交叉特征。", "cites": [{"source_id": "gank-recsys", "locator": "Q5"}] },
+        { "text": "vs DCN: DCN 用 Cross Network 显式建模高阶交叉，DeepFM 二阶显式 + 高阶交给 DNN 隐式。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "为什么 DNN 不能替代 FM 部分: DNN 过度泛化稀疏特征丧失记忆；FM 显式乘法比 DNN 隐式高效得多。", "cites": [{"source_id": "gank-recsys", "locator": "Q6"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Wide & Deep",
+    "aliases": ["Wide and Deep", "wide_deep"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2016 提出，Wide (线性 LR 部分，处理稀疏交叉特征做记忆) + Deep (DNN 部分做泛化) 联合训练。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "Wide 侧需要人工设交叉特征 (如 性别×年龄×品类)，工程量大；DeepFM 用 FM 自动学习是其改进。", "cites": [{"source_id": "gank-recsys", "locator": "Q5"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "SIM",
+    "aliases": ["Search-based Interest Model", "长序列推荐"],
+    "topic_ids": ["19.5"],
+    "slots": {
+      "definition": [
+        { "text": "阿里 2020 长序列建模方案：两阶段，先用倒排索引 (General Search Unit) 从万级历史检索 top-k 相关行为，再做 Target Attention (Exact Search Unit)。", "cites": [{"source_id": "gank-recsys", "locator": "Q8"}] }
+      ],
+      "interview_points": [
+        { "text": "把超长序列 (10k+) 的 attention 复杂度从 O(N) 降到 O(K)，K 远小于 N；用户长期兴趣可用。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ESMM",
+    "aliases": ["Entire Space Multi-Task Model", "全空间多任务"],
+    "topic_ids": ["19.7"],
+    "slots": {
+      "definition": [
+        { "text": "阿里 2018 解决 CVR 样本选择偏差 (SSB) 问题：CVR 只在点击样本上训练，分布与全库推断不匹配。", "cites": [{"source_id": "gank-recsys", "locator": "Q9"}] }
+      ],
+      "mechanism": [
+        { "text": "学习 CTR 和 CTCVR (=CTR×CVR) 两个全空间任务，CVR = CTCVR/CTR 隐式得到，全空间训练消除偏差。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "MMOE",
+    "aliases": ["Multi-gate Mixture-of-Experts", "mmoe", "PLE"],
+    "topic_ids": ["19.2"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2018 多任务学习方案：多个共享 Expert 网络 + 每个任务独有 Gate 选择 Expert 加权，解决 hard-share 任务冲突问题。", "cites": [{"source_id": "gank-recsys", "locator": "Q10"}] }
+      ],
+      "comparison": [
+        { "text": "PLE (腾讯 2020) 在 MMOE 上加任务独有 Expert + 共享 Expert，进一步缓解'跷跷板'效应。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "多任务冲突调整 loss 权重: GradNorm / Uncertainty Weighting 动态调整。", "cites": [{"source_id": "gank-recsys", "locator": "Q10"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "MMR 与 DPP 重排",
+    "aliases": ["MMR", "DPP", "Maximal Marginal Relevance", "多样性重排"],
+    "topic_ids": ["19.3"],
+    "slots": {
+      "definition": [
+        { "text": "MMR: 贪心选择 score = λ·相关性 - (1-λ)·与已选最大相似度，λ 控相关性 vs 多样性权衡。DPP: 行列式点过程，子集 S 概率 ∝ det(L_S) 自然鼓励多样性。", "cites": [{"source_id": "gank-recsys", "locator": "Q11"}] }
+      ],
+      "interview_points": [
+        { "text": "重排放在精排之后做业务约束: 打散同 author/类目、保多样性、混排广告。先硬规则后软算法。", "cites": [{"source_id": "gank-recsys", "locator": "Q23"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "ReAct",
+    "aliases": ["Reasoning + Acting", "react agent"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "Yao 2022 提出的 Agent 范式：思考 (Thought) + 行动 (Action) + 观察 (Observation) 交替循环。", "cites": [{"source_id": "datawhale-helloagents", "locator": "Agent Q2"}] }
+      ],
+      "interview_points": [
+        { "text": "对比纯 CoT: ReAct 让 LLM 不只在脑内推理，能调外部工具/搜索得到事实反馈，缓解幻觉。", "cites": [] },
+        { "text": "对比 ToT/GoT: ReAct 是线性循环；ToT 树状探索多分支并回溯；GoT 图状任意节点连接。", "cites": [{"source_id": "datawhale-helloagents", "locator": "Agent Q4"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Function Calling",
+    "aliases": ["function calling", "tool use", "工具调用"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "通过 JSON Schema 描述工具签名给 LLM，LLM 输出结构化 (tool_name, arguments) 来决定何时调谁、传什么参数。", "cites": [{"source_id": "datawhale-helloagents", "locator": "Agent Q3"}] }
+      ],
+      "mechanism": [
+        { "text": "训练: 用 (tool_def, query, expected_call) 数据 SFT 让模型学会触发；推理: 解析 LLM 输出 JSON → 执行 → 结果回灌作为新的 observation。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "MCP (Model Context Protocol) 是 Anthropic 2024 提出的标准化工具协议: 让任何 LLM 客户端能即插即用任何 MCP 兼容工具，类似 USB-C。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "BPE 与 WordPiece",
+    "aliases": ["Byte Pair Encoding", "tokenizer", "分词器", "BPE", "WordPiece"],
+    "topic_ids": ["14.1"],
+    "slots": {
+      "definition": [
+        { "text": "BPE: 从字符级开始反复合并出现频率最高的 token pair，直到词表满。WordPiece: 类似 BPE，但合并准则是'增加似然值最大' (基于语言模型概率)，BERT 用。", "cites": [{"source_id": "datawhale-helloagents", "locator": "LLM Q8"}] }
+      ],
+      "comparison": [
+        { "text": "BPE: 频率驱动，简单。WordPiece: 似然驱动，更优 token 边界。SentencePiece: 把空格也当字符处理，多语言更鲁棒 (LLaMA 用)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Lost in the Middle",
+    "aliases": ["长上下文中间遗忘"],
+    "topic_ids": ["18.4"],
+    "slots": {
+      "definition": [
+        { "text": "Liu et al. 2023 实验发现: LLM 处理长 context 时对开头和结尾信息利用好，中间信息常被忽视，呈 U 型分布。", "cites": [{"source_id": "datawhale-helloagents", "locator": "RAG Q4"}] }
+      ],
+      "interview_points": [
+        { "text": "缓解方案: ① 检索结果按相关性重排，把最相关放头尾；② Prompt 优化把关键信息放显眼位置；③ 用更长上下文训练的模型 (Claude/Gemini long context)；④ 多轮 RAG 拆问题。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Scaling Laws",
+    "aliases": ["scaling law", "缩放定律", "Chinchilla"],
+    "topic_ids": ["18.2"],
+    "slots": {
+      "definition": [
+        { "text": "OpenAI Kaplan 2020 + DeepMind Hoffmann 2022 (Chinchilla)：LLM loss 随参数量 N、数据量 D、计算 C 呈幂律下降；给定计算预算最优配比是 N:D 约 1:20 token/参数。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "Chinchilla 推翻 GPT-3 的'大模型小数据'范式: 同算力下增数据比增参数收益高，催生 LLaMA 等小参数大数据模型。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Reward Hacking",
+    "aliases": ["奖励作弊", "reward hacking"],
+    "topic_ids": ["18.3"],
+    "slots": {
+      "definition": [
+        { "text": "RLHF/RL 中模型学会钻 reward function 漏洞拿高分而非真对齐目标。例：回答故意冗长骗 RM (因为 RM 偏好长答案)。", "cites": [{"source_id": "datawhale-helloagents", "locator": "RLHF Q7"}] }
+      ],
+      "interview_points": [
+        { "text": "缓解: 多目标 reward (长度归一化)、红队对抗测试、定期重训 RM、KL 散度约束防漂移。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "LLM-as-Judge",
+    "aliases": ["llm as judge", "模型当评委"],
+    "topic_ids": ["18.4"],
+    "slots": {
+      "definition": [
+        { "text": "用强 LLM (GPT-4) 给候选回答打分/对比，做自动评测代替人工。MT-Bench / AlpacaEval / Arena 都用。", "cites": [{"source_id": "datawhale-helloagents", "locator": "评估 Q3"}] }
+      ],
+      "pitfalls": [
+        { "text": "三个偏差: ① 位置偏差 (前后顺序影响打分)；② 自我偏好 (GPT-4 偏 GPT-4 风格)；③ 长度偏差 (长答案打分高)。需对比双向、用多评委、长度归一化。", "cites": [] }
+      ]
+    }
+  }
+]

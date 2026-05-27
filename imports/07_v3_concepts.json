@@ -1,0 +1,448 @@
+[
+  {
+    "title": "DDP",
+    "aliases": ["Distributed Data Parallel", "数据并行", "PyTorch DDP"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "PyTorch 分布式数据并行：每卡完整模型副本 + 自己的数据 mini-batch，反向后 all-reduce 同步梯度再各自更新。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "训练并行"}] }
+      ],
+      "comparison": [
+        { "text": "vs DataParallel (DP): DP 单进程多线程, 主卡聚合, 易显存不均 + GIL 限制; DDP 多进程, 每卡独立, 通信用 NCCL all-reduce, 主流选择。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ZeRO",
+    "aliases": ["Zero Redundancy Optimizer", "DeepSpeed ZeRO"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "DeepSpeed 提出的显存优化方案。把 DDP 中每卡完整存的优化器状态、梯度、参数按 GPU 数分片存储。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "训练并行"}] }
+      ],
+      "mechanism": [
+        { "text": "三阶段: ZeRO-1 分优化器 (4× 显存↓), ZeRO-2 再分梯度 (8× 显存↓), ZeRO-3 再分参数 (N× 显存↓, N=GPU 数). 阶段越高通信越多。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "ZeRO-3 等价于 FSDP (PyTorch 官方实现)。两者算法一样, 接口不同。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "FSDP",
+    "aliases": ["Fully Sharded Data Parallel"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "PyTorch 官方实现的 ZeRO-3: 把模型参数、梯度、优化器状态全部 shard 到各 GPU; forward/backward 时按需 all-gather 临时聚合。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "训练并行"}] }
+      ],
+      "interview_points": [
+        { "text": "ZeRO-3 等价物, 已成 PyTorch 主流。HuggingFace TRL、Accelerate 都默认 FSDP。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "张量并行",
+    "aliases": ["Tensor Parallel", "Megatron-LM", "TP"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "Megatron-LM 提出: 把单层矩阵运算切分到多卡, 每卡算部分矩阵, 用 all-reduce 拼接结果。常用列并行 + 行并行交替。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "训练并行"}] }
+      ],
+      "interview_points": [
+        { "text": "通信频繁 (每层都 all-reduce), 适合同 node 8 卡 NVLink 高带宽内部使用; 跨 node 用 pipeline parallel 更好。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "流水线并行",
+    "aliases": ["Pipeline Parallel", "PP", "GPipe"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "模型按层切分到不同 GPU, 各 GPU 处理流水线的一段。GPipe 把 batch 分 micro-batch, 让卡间前向后向交错执行减空泡。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "训练并行"}] }
+      ],
+      "interview_points": [
+        { "text": "适合跨 node 拉满, 通信少 (只 point-to-point 传 activation); 与 ZeRO/TP 组合形成 3D 并行 (Megatron-DeepSpeed)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "混合精度训练",
+    "aliases": ["Mixed Precision", "AMP", "FP16", "BF16"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "前向/反向用 FP16 或 BF16 加速, 主权重 FP32 保精度。NVIDIA AMP / PyTorch autocast 实现。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "混合精度"}] }
+      ],
+      "comparison": [
+        { "text": "FP16: 范围窄易溢出, 需 loss scaling 防梯度下溢; BF16: 范围跟 FP32 一样、精度少, 无需 loss scaling, 大模型主流; FP8: 主要用于推理或大模型预训练 (H100 支持)。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "混合精度"}] }
+      ],
+      "interview_points": [
+        { "text": "显存约省一半, 速度 2-3×, 对结果影响 < 1%。LLaMA/GPT 训练都用 BF16。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Gradient Checkpoint",
+    "aliases": ["梯度检查点", "Activation Checkpointing"],
+    "topic_ids": ["20.1"],
+    "slots": {
+      "definition": [
+        { "text": "前向不存所有 activation, 只存部分; 反向需要时重算被丢弃的 activation。用计算换显存。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "显存可省 50-80%, 速度损失 25-33%。长序列 / 大模型必开。配合 Flash Attention 进一步省。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ResNet",
+    "aliases": ["Residual Network", "resnet"],
+    "topic_ids": ["15.1"],
+    "slots": {
+      "definition": [
+        { "text": "He 2015, 用残差块 (F(x) + x) 解决深网络梯度消失和退化问题, 训出 152 层超深网络, ImageNet top-5 错误率 3.57%。", "cites": [{"source_id": "github-315386775", "locator": "CV ResNet"}] }
+      ],
+      "interview_points": [
+        { "text": "为什么 work: ① 残差让梯度有恒等通路防消失; ② 网络默认是恒等映射 (sublayer=0), 至少不更差, 可深堆叠; ③ 1×1 卷积 bottleneck 大幅降参数 (ResNet-50/101/152)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "EfficientNet",
+    "aliases": ["efficientnet", "复合缩放"],
+    "topic_ids": ["15.1"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2019 提出复合缩放 (Compound Scaling): 同时按比例调网络深度 d、宽度 w、输入分辨率 r, 用 NAS 找最优基线 (B0), B1-B7 按系数缩放。", "cites": [{"source_id": "github-315386775", "locator": "CV EfficientNet"}] }
+      ],
+      "interview_points": [
+        { "text": "对比单维度缩放: 精度-参数权衡更好。EfficientNet-B7 比 ResNet-152 准很多但 FLOPs 少 8 倍。EfficientNetV2 进一步优化训练速度。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ViT",
+    "aliases": ["Vision Transformer", "vit"],
+    "topic_ids": ["15.4"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2020: 把图像切成 patch (16×16), 每个 patch 当 token 线性嵌入, 直接用纯 Transformer Encoder 做分类。无卷积。", "cites": [{"source_id": "github-315386775", "locator": "CV ViT"}] }
+      ],
+      "interview_points": [
+        { "text": "数据量少时不如 CNN (缺归纳偏置); 大数据 (JFT-300M) 预训练后超 CNN。后续 DeiT 用蒸馏小数据训, MAE 用 mask 自监督。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Swin Transformer",
+    "aliases": ["swin"],
+    "topic_ids": ["15.4"],
+    "slots": {
+      "definition": [
+        { "text": "微软 2021 改进 ViT: 引入局部窗口注意力 (W-MSA) 把全局 O(N²) attention 降到 O(N), 加移位窗口 (SW-MSA) 让相邻窗口信息交换。", "cites": [{"source_id": "github-315386775", "locator": "CV Swin"}] }
+      ],
+      "interview_points": [
+        { "text": "层级结构 (类似 CNN 多尺度) → 适合检测/分割。Swin-T/S/B/L 等价 ResNet-50/101/152 的不同规模。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "YOLO 演进",
+    "aliases": ["YOLO", "yolov5", "yolov8"],
+    "topic_ids": ["15.2"],
+    "slots": {
+      "definition": [
+        { "text": "单阶段检测器: 一次 forward 同时预测目标位置和类别, 端到端。", "cites": [{"source_id": "github-315386775", "locator": "CV YOLO"}] }
+      ],
+      "interview_points": [
+        { "text": "演进: v1 端到端但精度低 → v3 多尺度 + Darknet53 → v5 工程优化 + Mosaic + 自适应 anchor → v7 RepVGG + 训练 trick → v8 anchor-free + 解耦头 → v9/v10 NMS-free + 可逆学习块。", "cites": [{"source_id": "github-315386775", "locator": "CV YOLO"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "U-Net",
+    "aliases": ["unet"],
+    "topic_ids": ["15.3"],
+    "slots": {
+      "definition": [
+        { "text": "2015 医学图像分割经典: 编码器下采样提语义, 解码器上采样恢复分辨率, 同层之间用 skip connection 拼接保细节。", "cites": [{"source_id": "github-315386775", "locator": "CV UNet"}] }
+      ],
+      "interview_points": [
+        { "text": "U 型结构。Skip 是关键: 浅层有细节、深层有语义, 拼起来兼得。Stable Diffusion 也用 U-Net 做隐空间去噪。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "SAM",
+    "aliases": ["Segment Anything", "Segment Anything Model"],
+    "topic_ids": ["15.3"],
+    "slots": {
+      "definition": [
+        { "text": "Meta 2023 通用分割模型: 图像编码器 (ViT-H) + Prompt 编码器 (点/框/文字) + 轻量 Mask 解码器。零样本能分任意物体。", "cites": [{"source_id": "github-315386775", "locator": "CV SAM"}] }
+      ],
+      "interview_points": [
+        { "text": "训练数据 SA-1B (10 亿 mask)。SAM 2 加视频支持。下游应用: 标注工具加速、AR/VR、自动驾驶预标注。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "DETR",
+    "aliases": ["Detection Transformer", "detr"],
+    "topic_ids": ["15.2"],
+    "slots": {
+      "definition": [
+        { "text": "Facebook 2020: 用 CNN 提特征 + Transformer Encoder-Decoder + N 个 object query, 一次性输出 N 个目标, 用匈牙利匹配做二分图分配做 loss。", "cites": [{"source_id": "github-315386775", "locator": "CV DETR"}] }
+      ],
+      "interview_points": [
+        { "text": "去掉 anchor 和 NMS, 端到端。问题: 收敛慢 (500 epoch+)。改进: Deformable DETR、DINO、RT-DETR (实时)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Diffusion Model",
+    "aliases": ["扩散模型", "DDPM"],
+    "topic_ids": ["15.5"],
+    "slots": {
+      "definition": [
+        { "text": "正向: 真实图 x_0 经 T 步加高斯噪声变 x_T (近似纯噪声)。反向: 训练 U-Net ε_θ 预测每步加的噪声, 推理时从 x_T 迭代去噪还原 x_0。", "cites": [{"source_id": "github-315386775", "locator": "CV Diffusion"}] }
+      ],
+      "mechanism": [
+        { "text": "Loss = ||ε - ε_θ(x_t, t)||² 极简, 训练稳。采样: DDPM 1000 步, DDIM/DPM-Solver 几十步即可, 加速。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "对比 GAN: 训练更稳、多样性更好、可控性强 (classifier-free guidance); 缺点: 推理慢、需多步采样。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Stable Diffusion",
+    "aliases": ["SD", "Latent Diffusion Model", "LDM"],
+    "topic_ids": ["15.5"],
+    "slots": {
+      "definition": [
+        { "text": "Stability AI 2022: 在 VAE 隐空间 (而非像素空间) 做 Diffusion, 大幅降算力。三组件: ① VAE 编/解码隐空间; ② U-Net 在隐空间去噪; ③ Text encoder (CLIP / T5) 注入文本条件。", "cites": [{"source_id": "github-315386775", "locator": "CV SD"}] }
+      ],
+      "interview_points": [
+        { "text": "Classifier-Free Guidance: 同时跑有条件和无条件 noise pred, 推理时 ε_combined = ε_uncond + w (ε_cond - ε_uncond), w 控文本一致性。", "cites": [] },
+        { "text": "演进: SD 1.5 (基础) → SDXL (双 text encoder + 1024 分辨率) → SD 3 (MM-DiT, Flow Matching) → Flux (黑森林, 当前 SOTA 开源)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "BEV 感知",
+    "aliases": ["Bird's-Eye View", "BEVFormer", "自动驾驶感知"],
+    "topic_ids": ["15.4"],
+    "slots": {
+      "definition": [
+        { "text": "自动驾驶: 把多摄像头 (6-12 路) + LiDAR 特征通过 attention/几何投影统一到鸟瞰图坐标系 (BEV), 再做检测/分割/预测。", "cites": [{"source_id": "github-315386775", "locator": "CV BEV"}] }
+      ],
+      "interview_points": [
+        { "text": "代表: LSS (lift-splat-shoot 几何投影)、BEVFormer (时空 Transformer)、PETR (3D 位置编码)。Tesla Occupancy Network、地平线 OccNet 也是 BEV。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "FM",
+    "aliases": ["Factorization Machine", "因子分解机"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "Rendle 2010: y = w_0 + Σw_i x_i + Σ<v_i, v_j> x_i x_j。每个特征学一个隐向量 v, 二阶交叉用内积表示, 解决稀疏特征 LR/POLY2 学不到的组合。", "cites": [{"source_id": "github-km1994-recsys", "locator": "FM"}] }
+      ],
+      "interview_points": [
+        { "text": "稀疏场景下比 POLY2 强: 任何特征都能学到 v, 即使 (i,j) 组合在训练集没出现也能预测。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "DCN",
+    "aliases": ["Deep & Cross Network", "DCN-V2"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2017: Cross Network 显式建模任意阶特征交叉 (x_l+1 = x_0 · x_l^T · w + b + x_l) + Deep Network 隐式高阶交叉, 双塔拼接。", "cites": [{"source_id": "github-km1994-recsys", "locator": "DCN"}] }
+      ],
+      "comparison": [
+        { "text": "vs DeepFM: DCN 显式高阶 (2/3/4 阶都能), DeepFM 只显式二阶高阶给 DNN; DCN-V2 用矩阵替代向量进一步增表达。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "SASRec",
+    "aliases": ["序列推荐", "self-attentive recommendation"],
+    "topic_ids": ["19.5"],
+    "slots": {
+      "definition": [
+        { "text": "2018: 把用户历史行为序列直接当 NLP 序列, 用单向 Transformer (causal masked) 自回归预测下一个交互物品。", "cites": [{"source_id": "github-km1994-recsys", "locator": "SASRec"}] }
+      ],
+      "comparison": [
+        { "text": "BERT4Rec: 改用双向 Transformer + Cloze 任务 (随机 mask 中间 item 预测), 双向能更好建模用户兴趣。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "TIGER",
+    "aliases": ["生成式推荐", "Generative Recommendation"],
+    "topic_ids": ["19.5"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2023: 把 item 用 RQ-VAE 编码成 semantic ID (codebook 序列), 再用 Transformer 自回归生成下一个 item 的 semantic ID, 完全 NLP 化。", "cites": [{"source_id": "github-km1994-recsys", "locator": "TIGER"}] }
+      ],
+      "interview_points": [
+        { "text": "优势: 冷启动友好 (semantic ID 由内容编码), 类别泛化好。开启生成式推荐范式, 后续 HSTU/MetaGen 跟进。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "HNSW",
+    "aliases": ["Hierarchical Navigable Small World", "hnsw"],
+    "topic_ids": ["4.2", "19.1"],
+    "slots": {
+      "definition": [
+        { "text": "向量 ANN (近似最近邻) 算法: 多层图结构, 顶层稀疏长边大跳, 底层密集小边精搜。查询从顶层贪心下降, 复杂度 O(log N)。", "cites": [{"source_id": "github-km1994-recsys", "locator": "向量召回"}] }
+      ],
+      "comparison": [
+        { "text": "vs IVF (倒排+聚类): IVF 训练快、内存省, HNSW 召回率更高、查询更快但内存大。FAISS 都支持。Milvus/Qdrant 默认 HNSW。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "关键参数: M (每节点最大邻居数, 16-48), ef_construction (建图时探索宽度, 200-500), ef_search (查询时, 50-200, 大→准慢)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "IVF",
+    "aliases": ["Inverted File Index", "IVF-PQ", "Product Quantization"],
+    "topic_ids": ["4.2", "19.1"],
+    "slots": {
+      "definition": [
+        { "text": "向量 ANN: k-means 聚类把向量分 N 个 cluster, 查询时找最近 n_probe 个 cluster 内搜。常配 PQ (Product Quantization) 把向量压缩 8-32× 进一步省内存。", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "适合超大规模 (1 亿+) 内存敏感场景。IVF-PQ 在 FAISS / ScaNN 都有实现。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "FTRL",
+    "aliases": ["Follow The Regularized Leader", "在线学习"],
+    "topic_ids": ["19.4"],
+    "slots": {
+      "definition": [
+        { "text": "Google 2013 在线学习算法: 结合 SGD 的精度和 RDA 的稀疏性, 每个特征独立学习率 + L1 正则 (累积梯度过阈值才置 0), 适合广告高维稀疏在线 CTR。", "cites": [{"source_id": "github-km1994-recsys", "locator": "FTRL"}] }
+      ],
+      "interview_points": [
+        { "text": "工业广告 CTR 经典: 每分钟在线更新, 模型稀疏 (大部分特征权重 0) 推理快, 适合 LR / FM 类宽模型。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "CLIP",
+    "aliases": ["clip", "Contrastive Language-Image Pre-training"],
+    "topic_ids": ["17.1"],
+    "slots": {
+      "definition": [
+        { "text": "OpenAI 2021: 用 4 亿图文对, 图像编码器和文本编码器分别编码, 用对比学习 (InfoNCE) 拉近匹配对、推远不匹配对, 在公共空间对齐。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "多模态"}] }
+      ],
+      "interview_points": [
+        { "text": "Zero-shot 分类: 把类别名当文本 prompt, 算图文相似度。是后续 Stable Diffusion、LLaVA、DALL-E 的视觉/文本编码器底座。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "LLaVA",
+    "aliases": ["llava", "Large Language and Vision Assistant"],
+    "topic_ids": ["17.2"],
+    "slots": {
+      "definition": [
+        { "text": "2023 开源 VLM: 视觉编码器 (CLIP ViT) + projection MLP + LLM (LLaMA/Vicuna)。两阶段训练: 先 freeze 训 projection, 再 instruction-tune 整体。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "多模态"}] }
+      ],
+      "interview_points": [
+        { "text": "数据策略: 用 GPT-4 把 caption 改写成 instruction 对话作训练数据 (合成数据范式)。后续 Qwen-VL/InternVL 改用更强 vision encoder + 更细图像 token。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Whisper",
+    "aliases": ["whisper", "语音识别 ASR"],
+    "topic_ids": ["17.3"],
+    "slots": {
+      "definition": [
+        { "text": "OpenAI 2022 开源 ASR: 编码器-解码器 Transformer, 用 68 万小时网络音频弱监督训练。多语言 (99 种), 自带语种检测、翻译。", "cites": [{"source_id": "github-LLMForEverybody", "locator": "多模态"}] }
+      ],
+      "interview_points": [
+        { "text": "推理优化: faster-whisper (CTranslate2 加速) / whisper.cpp (CPU 部署)。后续 Seamless / Voxtral 走向多模态语言模型。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ML 系统设计流程",
+    "aliases": ["ML System Design", "ML 系统设计"],
+    "topic_ids": ["6.4"],
+    "slots": {
+      "definition": [
+        { "text": "标准 6 步: ① 问题澄清 (业务目标/约束/规模) → ② 评估指标 (离线+在线+护栏) → ③ 数据 (来源/标注/采样) → ④ 特征+模型 → ⑤ 训练评估 → ⑥ 部署+监控。", "cites": [{"source_id": "github-alirezadir", "locator": "system design"}] }
+      ],
+      "interview_points": [
+        { "text": "面试时一定问清楚业务目标和规模再开始设计, 不要直接堆模型。比如 '推荐系统' 要先问: DAU? QPS? Latency 预算? 怎么定义成功?", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "A/B Test",
+    "aliases": ["AB Test", "在线实验"],
+    "topic_ids": ["6.4"],
+    "slots": {
+      "definition": [
+        { "text": "把用户分流 (typically 50/50) 给 A 控制组和 B 实验组, 在统计显著性下对比业务指标 (CTR/CVR/留存), 判断新算法是否优于旧的。", "cites": [{"source_id": "github-alirezadir", "locator": "system design"}] }
+      ],
+      "interview_points": [
+        { "text": "关键点: ① hash 分流稳定 (user_id hash); ② 显著性检验 (t-test/z-test); ③ 控制 multiple comparison; ④ 检查 SRM (sample ratio mismatch); ⑤ 长期效应用 holdout; ⑥ 护栏指标 (不让一个目标涨另一个崩)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Feature Store",
+    "aliases": ["特征平台", "feature store"],
+    "topic_ids": ["6.4"],
+    "slots": {
+      "definition": [
+        { "text": "统一管理 ML 特征的中心平台: ① 离线特征 (训练用) + 在线特征 (推理用) 一致存储; ② 特征版本/血缘/监控; ③ 多任务复用避免重复造轮子。", "cites": [{"source_id": "github-alirezadir", "locator": "feature store"}] }
+      ],
+      "interview_points": [
+        { "text": "解决核心痛点: 训-推特征不一致 (training-serving skew)、特征重复实现、特征数据漂移。代表开源: Feast、Tecton、阿里 Ali-Feature-Hub。", "cites": [] }
+      ]
+    }
+  }
+]

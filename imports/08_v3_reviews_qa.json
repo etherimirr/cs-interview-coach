@@ -1,0 +1,163 @@
+[
+  {
+    "knowledge_card_title": "DDP",
+    "question": "DDP 怎么同步梯度？为什么比 DataParallel 快？",
+    "answer": "做法: 每张卡跑独立 Python 进程, 各自前向反向算梯度, 反向过程中用 NCCL 的 all-reduce 把各卡梯度求平均, 再各自用平均梯度更新自己的模型副本. (因为初始权重相同 + 同步梯度 → 各卡模型始终一致)\n\n比 DP 快的原因:\n1) 多进程绕开 Python GIL\n2) 通信是 ring all-reduce, 跨 N 卡 O(N) 通信; DP 是主卡聚合 O(N²)\n3) 反向计算和通信重叠 (bucket 机制)\n4) 没有主卡显存瓶颈\n\nDP 现在已废弃, 单机也推荐 DDP."
+  },
+  {
+    "knowledge_card_title": "ZeRO",
+    "question": "ZeRO 三个阶段分别省多少显存？通信代价怎么样？",
+    "answer": "Baseline DDP: 每卡完整存 模型参数 P + 梯度 G + Adam 优化器状态 OS (2P, FP32 主权重 + 一阶矩 + 二阶矩 ≈ 12P bytes 假设 FP16 训练).\n\nZeRO-1: shard 优化器状态 OS\n  显存 ≈ baseline - 12P/N + 12P/N → 节省最大部分 (优化器最大)\n  通信: 反向 all-reduce (跟 DDP 一样)\n\nZeRO-2: 再 shard 梯度 G\n  显存进一步降, 节省 14P/N\n  通信: 反向用 reduce-scatter (跟 all-reduce 一样开销)\n\nZeRO-3: 再 shard 参数 P\n  显存 → 16P/N (N=64 时几乎 1/64)\n  通信: forward + backward 都要 all-gather 参数 → 通信增加 50%\n\n实践: ZeRO-3 / FSDP 最省, 但通信增。配合 offload 到 CPU/NVMe 极限省显存。"
+  },
+  {
+    "knowledge_card_title": "张量并行",
+    "question": "Tensor Parallel 怎么切矩阵？为什么不适合跨 node？",
+    "answer": "切法 (以 FFN MLP 为例, X · W1 · W2):\n  列并行 W1: 把 W1 [d, 4d] 按列切成 N 份, 每卡 [d, 4d/N], 各算 X · W1_i 得 [b, 4d/N]; 不通信\n  行并行 W2: 把 W2 [4d, d] 按行切成 N 份, 每卡 [4d/N, d], 算 partial 结果 [b, d]; all-reduce 求和\n  一对 (列+行) 用一次 all-reduce. Attention 类似 (head 切分到不同卡).\n\n不适合跨 node:\n  每层都要 all-reduce, 通信非常频繁 (千次/step)\n  NVLink/NVSwitch (同 node) 带宽 ~900 GB/s; IB/RoCE (跨 node) ~50 GB/s, 慢 20×\n  实践: TP 限制在同 node 8 卡内, 跨 node 用 PP 或 ZeRO."
+  },
+  {
+    "knowledge_card_title": "流水线并行",
+    "question": "Pipeline Parallel 为什么有 'bubble'？GPipe 怎么解？",
+    "answer": "Bubble (空泡): 把模型 L 层切到 K 个 GPU, 每张卡处理 L/K 层. 一个 batch 进来:\n  GPU0 算 layer0..L/K-1 → 把 activation 传给 GPU1 → ... → GPU(K-1) 算最后一段\n  反向回传\n问题: GPU1 等 GPU0 完成才开始, GPU0 算完了等 backward, 利用率低 (bubble = 卡空闲)\n\nGPipe 解决:\n  把一个 batch 拆成 M 个 micro-batch, 流水线交错\n  当 micro-batch_0 在 GPU3 时, micro-batch_1 在 GPU2 ... micro-batch_3 在 GPU0\n  全部塞满后所有 GPU 都在算, bubble 比例 = (K-1) / (M + K - 1)\n  M 越大 bubble 越小; 实践 M ≥ 4K 时 bubble < 20%\n\n进阶: 1F1B (Interleaved) PipeDream 等再减 bubble."
+  },
+  {
+    "knowledge_card_title": "混合精度训练",
+    "question": "FP16 和 BF16 区别？为什么大模型都用 BF16？",
+    "answer": "数值表示:\n  FP16: 1 符号 + 5 指数 + 10 尾数, 范围 ~10^(-5) 到 65504, 精度 ~3 位十进制\n  BF16: 1 符号 + 8 指数 + 7 尾数, 范围跟 FP32 一样 (10^(-38) ~ 10^38), 精度 ~2 位十进制\n  FP32: 1 + 8 + 23\n\nFP16 问题:\n  范围窄, 梯度小数易下溢成 0 (vanishing) 或溢出 inf\n  必须配 loss scaling (loss × 2^k 放大梯度) 才能训\n\nBF16 优势:\n  范围跟 FP32 一样, 不会溢出\n  无需 loss scaling\n  精度低不重要 (深度学习对精度不敏感, 对范围敏感)\n\n大模型为什么 BF16:\n  训练大模型梯度跨度大, FP16 范围不够\n  A100/H100 都原生支持 BF16 矩阵运算\n  LLaMA/GPT/Gemma 都 BF16"
+  },
+  {
+    "knowledge_card_title": "Gradient Checkpoint",
+    "question": "Gradient Checkpoint 怎么用计算换显存？",
+    "answer": "前向: 默认 PyTorch 把每个算子的 activation 全存下来 (反向用). 长序列 / 大模型 activation 显存比参数还大.\n\nCheckpoint 做法:\n  前向只存少数 'checkpoint' 节点 (比如每 K 层存一次), 中间 activation 全丢\n  反向时, 走到没存的层就从最近 checkpoint 重新跑一遍前向, 拿到 activation 再反向\n\n效果:\n  显存: 从 O(L) 降到 O(√L), 典型省 50-80%\n  时间: 反向需要重算前向, 总训练时间 +25-33%\n\n实践:\n  PyTorch torch.utils.checkpoint.checkpoint(module, input)\n  Transformer 训练几乎必开. 配合 Flash Attention (省 attention activation) 更狠.\n\n口诀: 显存换不起, 用时间换."
+  },
+  {
+    "knowledge_card_title": "ResNet",
+    "question": "ResNet 为什么能堆 152 层？bottleneck 结构作用？",
+    "answer": "能堆深的核心 = 残差连接:\n  f(x) = x + sublayer(x), 反向梯度 ∂L/∂x 至少有 ∂L/∂f · I 通路\n  即使深层学不到东西 (sublayer → 0), 也只是恒等映射, 不会变差\n  实验: 没残差时, 56 层比 20 层准确率更低 (退化); 加残差后, 100+ 层稳定下降\n\nBottleneck 结构 (ResNet-50/101/152 用):\n  3×3 conv 256→256 直接堆: 参数 = 3×3×256×256 = 590K\n  Bottleneck: 1×1 (256→64) + 3×3 (64→64) + 1×1 (64→256) = 70K, 参数 8×减少, 精度持平\n  1×1 conv 降维再升维, 减少 3×3 conv 的输入维度\n\n意义: ResNet-152 不比 ResNet-50 慢太多 (FLOPs 接近), 但精度提升 1.5%."
+  },
+  {
+    "knowledge_card_title": "EfficientNet",
+    "question": "EfficientNet 的复合缩放为什么比单维度缩放好？",
+    "answer": "传统缩放只调一个维度:\n  深 (更多层) → 梯度难传\n  宽 (更多通道) → 浅特征过拟合, 缺少 abstraction\n  分辨率 (更大输入) → 算力涨快, 精度提升边际\n  单维度 push 到极限后边际回报急剧下降.\n\n复合缩放思想:\n  深度 d、宽度 w、分辨率 r 三者协同放大, 资源预算 φ:\n    d = α^φ, w = β^φ, r = γ^φ\n    约束: α · β² · γ² ≈ 2 (FLOPs 翻倍约束)\n  用 NAS 找最佳基线 (B0), 然后按 φ 缩放出 B1-B7\n\n为什么好: 三者匹配增长, 没有瓶颈; 通过 NAS 找到最优 α/β/γ 配比 (α=1.2, β=1.1, γ=1.15 左右).\n\n效果: B7 精度 84.4% 但 FLOPs 比 ResNet-152 (77.8%) 少 8×, 参数少 7×."
+  },
+  {
+    "knowledge_card_title": "ViT",
+    "question": "ViT 为什么小数据不如 CNN？怎么解？",
+    "answer": "原因: CNN 有归纳偏置 (inductive bias):\n  局部性 (locality): 卷积只看周围像素\n  平移不变性 (translation invariance): 同一卷积核滑动\n  权重共享: 大幅减参数\nViT 全 attention 没这些先验, 必须从大量数据学到这些规律.\n\n小数据 (ImageNet-1k 1.3M): ViT 不如 ResNet\n大数据 (JFT-300M): ViT 超越 ResNet\n\n解决方案:\n1) DeiT (Facebook 2021): 蒸馏 + 强数据增强, ImageNet-1k 上也能训\n2) MAE (Meta 2022): mask 75% patch 自监督训练 (像 BERT), 再 finetune\n3) Swin: 加入局部窗口 attention, 显式注入局部性偏置\n4) ConvNeXt: 反过来把 ViT 设计 trick 用到 CNN, 证明 CNN 加这些也很强"
+  },
+  {
+    "knowledge_card_title": "Swin Transformer",
+    "question": "Swin 的 shifted window 怎么工作？为什么需要 shift？",
+    "answer": "Window Attention (W-MSA):\n  把 feature map 切成不重叠的 M×M 窗口 (M=7)\n  attention 只在窗口内做, 复杂度从 O(H²W²) 降到 O(M² × HW)\n  问题: 不同窗口之间无信息交换 → 感受野受限\n\nShifted Window (SW-MSA):\n  下一层把窗口整体向右下平移 M/2, 新窗口跨越原窗口边界\n  这样 layer L 的相邻窗口在 layer L+1 的同一新窗口里 attention\n  跨窗口信息流通\n\n工程: shift 后窗口大小不规则, Swin 用 cyclic shift (循环移位) + mask 让所有窗口都是 M×M, 实现高效.\n\n层级结构: 每 stage 末尾 patch merging (2×2 → 1) 降分辨率升通道, 类似 CNN 的 stage."
+  },
+  {
+    "knowledge_card_title": "U-Net",
+    "question": "U-Net 的 skip connection 解决什么问题？",
+    "answer": "分割任务需要 pixel-level 输出, 但深层网络下采样后空间分辨率丢失. 上采样回去就丢细节.\n\nSkip Connection:\n  把 encoder 的浅层特征 (高分辨率, 多细节) 直接 concat 到 decoder 对应层\n  浅层有边缘/纹理, 深层有语义/类别\n  拼起来兼得\n\n效果:\n  分割边界精细 (浅层细节)\n  分类准确 (深层语义)\n\n变种:\n  V-Net (3D 医学): U-Net + 3D 卷积\n  UNet++: 嵌套 skip\n  Attention U-Net: 给 skip 加 attention gate\n\n应用: 医学图像分割 (经典), Stable Diffusion 也用 U-Net 做隐空间去噪 (skip 让去噪保细节)."
+  },
+  {
+    "knowledge_card_title": "SAM",
+    "question": "SAM 为什么能做零样本分割？",
+    "answer": "零样本能力的来源:\n1) 数据规模: SA-1B 10 亿标注 mask, 比之前任何分割数据集大 400 倍, 涵盖各种物体类别和场景\n2) 设计的 task: '可提示分割' (promptable segmentation), 给定任意 prompt (点/框/text) 输出对应 mask, 不限固定类别\n3) 模糊性建模: 同一个 prompt 可能对应多个有效 mask (比如点在衬衫上可指衬衫/人/物体), SAM 输出 3 个候选 + 置信度\n\n架构 (三组件):\n- Image Encoder: ViT-H, 计算 expensive 但 per-image 跑一次\n- Prompt Encoder: 点/框 转 embedding (轻)\n- Mask Decoder: 双向 attention (image ↔ prompt) 输出 mask (轻, < 50ms)\n\n应用:\n- 标注工具: 用户点几下就标完一张图\n- 自动驾驶: 预标注感知数据\n- AR/VR: 实时物体抠图\n- 医学: 配合微调用于特定模态"
+  },
+  {
+    "knowledge_card_title": "DETR",
+    "question": "DETR 怎么用 Transformer 做检测？为什么不需要 NMS？",
+    "answer": "做法:\n1) CNN backbone 提特征 → 展平成 token 序列\n2) Transformer Encoder 全局 attention\n3) Transformer Decoder 输入 N 个 'object query' (可学习的 token, N=100 远大于实际目标数)\n4) 每个 query 输出 (类别, bbox), 共 N 个预测\n\n不需要 NMS 的原因:\n  二分图匹配 (Hungarian algorithm) 把 N 个预测和 GT 一一匹配, 没匹配上的预测要预测 'no object'\n  loss = 匹配预测的 cls + bbox loss + 未匹配预测的 'no object' loss\n  训练目标本身让多个 query 不会预测同一个目标 (一对一匹配)\n  推理时直接输出 N 个预测中 confidence 高的, 无需 NMS\n\n问题: 收敛慢 (500+ epoch 才追上 Faster R-CNN), 因为匹配早期不稳定.\n改进:\n- Deformable DETR: 多尺度可变形 attention, 50 epoch 收敛\n- DINO / RT-DETR: 实时检测, 比 YOLO 还快"
+  },
+  {
+    "knowledge_card_title": "Diffusion Model",
+    "question": "Diffusion 训练目标是什么？为什么训练稳定？",
+    "answer": "训练目标:\n  正向过程: x_0 → x_1 → ... → x_T (逐步加高斯噪声, 数学上可一步采样 x_t = √(ᾱ_t) x_0 + √(1-ᾱ_t) ε, ε~N(0,I))\n  反向过程: 训 U-Net ε_θ(x_t, t) 预测 t 步加的噪声 ε\n  Loss = E_t,x_0,ε [ ||ε - ε_θ(x_t, t)||² ]\n  极简 MSE, 类似 denoising autoencoder.\n\n为什么训练稳定 (对比 GAN):\n1) Loss 是 MSE, 凸/光滑, 单一目标, 没对抗博弈\n2) 不需要平衡生成器/判别器\n3) 不会模式崩塌 (mode collapse), 因为目标是逐步去噪, 自然覆盖整个分布\n\n推理:\n  从 x_T ~ N(0,I) 采样\n  迭代: x_{t-1} = f(x_t, ε_θ(x_t, t)) for t = T, T-1, ..., 1\n  DDPM 需 T=1000 步, DDIM/DPM-Solver/EDM 几十步就行 (加速采样)"
+  },
+  {
+    "knowledge_card_title": "Stable Diffusion",
+    "question": "Latent Diffusion (Stable Diffusion) 为什么把扩散搬到隐空间？",
+    "answer": "原版 Pixel-Diffusion 问题:\n  对 512×512 图像 (786432 维) 直接做扩散, U-Net 算量爆炸\n  训练慢 (上百 GPU 月), 推理慢 (单图几十秒)\n\nLatent Diffusion 思路:\n  先训一个 VAE 把图像压到隐空间 (512→64, 16× 降维), z ∈ R^(64×64×4)\n  在隐空间做扩散, U-Net 在 64×64×4 上跑\n  最后 VAE decoder 把 z_0 还原到像素\n\n收益:\n  算量 ↓ 16² = 256×\n  训练: 单 8 卡 A100 训几周即可\n  推理: 单 RTX 3090 几秒/张\n\n附加优势:\n  VAE 已经过滤掉高频噪声, 扩散更容易学语义\n  CLIP/T5 文本条件通过 cross-attention 注入 U-Net 各层"
+  },
+  {
+    "knowledge_card_title": "Stable Diffusion",
+    "question": "Classifier-Free Guidance 怎么工作？为什么需要？",
+    "answer": "需求: 用文本控制生成内容, 让生成结果跟 prompt 强相关.\n\n传统 Classifier Guidance:\n  额外训一个 classifier p(y|x), 用其梯度引导采样\n  问题: 要训额外模型, 且分类器需要在带噪图上 work, 难训\n\nClassifier-Free Guidance:\n  训练时: 10% 概率随机丢弃文本条件 (用空 token), 让 U-Net 同时学有条件 ε_θ(x, t, c) 和无条件 ε_θ(x, t, ∅)\n  推理时: ε_combined = ε_θ(x, t, ∅) + w · (ε_θ(x, t, c) - ε_θ(x, t, ∅))\n  其中 w (guidance scale) 控文本一致性, 典型 7-15\n\n本质: 把'有条件比无条件多出的方向'放大 w 倍, 让生成更靠拢文本.\n\n副作用: w 太大图像会过饱和、失真 (over-saturation, 棋盘格)."
+  },
+  {
+    "knowledge_card_title": "BEV 感知",
+    "question": "BEV 感知怎么把摄像头特征投到鸟瞰图？两条主流路线？",
+    "answer": "两条路线:\n\n1) 几何投影 (Bottom-up): LSS / BEVDet 系\n  - Lift: 每张图给每个像素预测深度分布 D, 提到 3D 空间\n  - Splat: 把 3D 点投到 BEV 网格 (按 z 池化)\n  - Shoot: BEV 网格上做检测/分割任务头\n  优点: 几何可解释, 多相机融合简单\n  缺点: 依赖深度估计准, 远距离不稳\n\n2) 学习式投影 (Top-down): BEVFormer / DETR3D 系\n  - 在 BEV 网格上预定义 grid query\n  - 每个 BEV grid 通过 cross-attention 查询各相机图像特征\n  - 隐式学习投影关系, 不显式估深度\n  优点: 端到端可学, 远距离更好\n  缺点: attention 复杂度高, 实时性差\n\nTesla AI Day 2022 走的是混合 + 时序融合, 名为 Occupancy Network 用 4D 占用网格."
+  },
+  {
+    "knowledge_card_title": "FM",
+    "question": "FM 比 POLY2 强在哪？为什么稀疏场景下 FM 能学到没见过的特征组合？",
+    "answer": "POLY2: y = w_0 + Σw_i x_i + Σ w_ij x_i x_j\n  每个 (i, j) 组合学独立权重 w_ij\n  问题: 训练集没出现过的 (i, j) → w_ij 没法学, 推理时该组合特征失效\n  广告 user_id × item_id 共有 1 亿 × 1 千万 组合, 训练集 0.001% 都没看过\n\nFM: y = w_0 + Σw_i x_i + Σ <v_i, v_j> x_i x_j\n  每个特征 i 学一个隐向量 v_i ∈ R^k (k=10-100)\n  二阶权重用 <v_i, v_j> 内积代替\n  即使 (i, j) 没共现, 因为 v_i 和 v_j 各自能从其他共现里学到, 内积就有意义\n\n结论:\n  POLY2 需要看到 (i, j) 才能学; FM 只需 i 和 j 分别和别的特征共现就能学到 (i, j) 的关系\n  稀疏场景泛化能力强得多, 推荐/广告的 ID 类特征必备."
+  },
+  {
+    "knowledge_card_title": "DCN",
+    "question": "DCN 的 Cross Network 怎么显式建模 N 阶交叉？",
+    "answer": "Cross Layer: x_{l+1} = x_0 · x_l^T · w_l + b_l + x_l\n\n递推展开:\n  x_1 = x_0 x_0^T w_0 + b_0 + x_0 (含 2 阶)\n  x_2 = x_0 x_1^T w_1 + b_1 + x_1 (含 3 阶, 因为 x_1 已含 2 阶)\n  ...\n  x_L 含到 (L+1) 阶的所有显式交叉\n\n关键设计:\n  x_0 (原始输入) 始终在外, 保证最低阶不丢; 像残差连接\n  w_l ∈ R^d 单个向量, 不是 d×d 矩阵, 参数省 (DCN-V2 改为矩阵更强)\n  每层只加 O(d) 参数, L 层 Cross 总参数 ~L·d\n\n对比 DNN:\n  DNN 隐式学高阶, 不可解释\n  Cross 每阶显式存在, 像 FM 的高阶版\n\n双塔: Cross + Deep 拼接, Cross 抓显式记忆, Deep 抓隐式泛化."
+  },
+  {
+    "knowledge_card_title": "SASRec",
+    "question": "SASRec / BERT4Rec 跟传统 RNN 推荐有什么优势？BERT4Rec 为什么用 Cloze 任务？",
+    "answer": "vs RNN 推荐 (GRU4Rec):\n  RNN 必须串行处理序列, 慢, 长序列梯度衰减\n  SASRec 用 Transformer 全并行, 序列任意位置直接 attention\n  长序列建模强\n\nSASRec (单向):\n  类似 GPT, causal mask, 预测下一个 item\n  目标: P(i_{t+1} | i_1, ..., i_t)\n  适合自回归推荐场景\n\nBERT4Rec (双向):\n  类似 BERT, 随机 mask 序列中 15% item, 让模型用上下文预测被 mask 的 item (Cloze 任务)\n  双向 attention 能看到 mask 位置前后的 item\n  优势: 双向能更好建模用户兴趣 (用户兴趣不是严格因果, 反过来看也合理)\n\n为什么 Cloze 而非 next-item: Cloze 让模型双向看上下文; next-item 必须单向. 类似 BERT vs GPT 的辩论."
+  },
+  {
+    "knowledge_card_title": "TIGER",
+    "question": "生成式推荐 (TIGER) 跟传统 embedding-based 推荐区别？",
+    "answer": "传统 embedding-based:\n  每个 item 学一个 embedding (ID-based)\n  召回靠向量相似度 (item 向量 dot 用户向量)\n  问题: 新 item 没 embedding (冷启动), 必须从内容生成 embedding 才能召回\n\nTIGER (Google 2023):\n  把每个 item 用 RQ-VAE (Residual Quantization VAE) 编码成一个 semantic ID 序列 (比如 [c1=12, c2=37, c3=89])\n  semantic ID 是 codebook 索引, 由 item 的内容特征 (title/image/meta) 学到\n  推荐建模成 NLP 自回归生成: 给用户历史 semantic ID 序列, 模型生成下一个 item 的 semantic ID\n  类似 'item-language model'\n\n优势:\n1) 冷启动友好: 新 item 编码出 semantic ID 就能被生成\n2) 数据稀疏类目泛化好 (相似内容的 item semantic ID 接近)\n3) 跟 LLM 范式接轨, 可以用 LLM-style scaling\n\n挑战:\n- 生成质量取决于 codebook 训练\n- 推理时 beam search 慢于向量召回\n- 大规模上线还在工业验证"
+  },
+  {
+    "knowledge_card_title": "HNSW",
+    "question": "HNSW 的多层图怎么构建和查询？为什么是 log(N)？",
+    "answer": "构建 (插入新向量 v):\n  对每个 v 随机采样一个层数 L (典型几何分布, 大部分点在底层, 越上层越稀)\n  从顶层开始: 找当前层 v 的最近邻, 沿邻居贪心走 (一直选更近的) 直到收敛\n  下到下一层, 用上层最近邻作为起点继续\n  到达 v 所属层后, 把 v 跟最近的 M 个邻居互连\n\n查询 (找 query q 的最近邻):\n  从顶层入口点开始贪心搜索\n  每层走到局部最近邻就降到下一层 (起点是上层结果)\n  到底层后展开 ef_search 宽度的 priority queue 找 k 近邻\n\n为什么 O(log N):\n  顶层稀疏可大跳到大概区域 (类似跳表)\n  下层稠密精搜小区\n  层数 ~log(N), 每层贪心 O(log N), 总 O(log² N) 但常数小, 实测 O(log N) 量级\n\nFAISS 实测: 1 亿向量召回 0.1ms 量级, 召回率 95%+."
+  },
+  {
+    "knowledge_card_title": "HNSW",
+    "question": "HNSW vs IVF: 怎么选？参数 ef_search 怎么调？",
+    "answer": "HNSW:\n  + 召回率高 (95%+ 容易)\n  + 查询快 (亚毫秒级)\n  + 不需要训练\n  - 内存大 (每点存 M 个邻居指针, 典型 200-400 bytes/vector overhead)\n  - 不支持高效删除\n\nIVF (+ PQ):\n  + 内存友好 (PQ 把向量压缩 8-32×)\n  + 适合 10 亿+ 规模\n  - 召回率比 HNSW 低 (建索引时聚类近似)\n  - 需要训练 (k-means)\n  - 查询有 nprobe 参数权衡\n\n选择:\n  < 1 亿 + 内存够: HNSW\n  > 1 亿 + 内存敏感: IVF-PQ 或 HNSW-PQ\n  动态写入多: HNSW (IVF 不好增删)\n  生产: Milvus/Qdrant 默认 HNSW, FAISS 选 IVF 多\n\nef_search 调参:\n  默认 50, 召回率 ~85%\n  调到 200 召回率 ~95%, 但查询时间 4×\n  调到 500 召回率 ~99%, 时间 10×\n  按 latency SLA 找最大 ef 使 p99 仍在预算内"
+  },
+  {
+    "knowledge_card_title": "CLIP",
+    "question": "CLIP 的对比损失怎么算？为什么能 zero-shot 分类？",
+    "answer": "训练:\n  batch B 个图文对 (image_i, text_i)\n  Image encoder 输出 v_i ∈ R^d, Text encoder 输出 t_j ∈ R^d\n  相似度矩阵 S ∈ R^(B×B): S_ij = v_i · t_j / τ (τ 温度)\n  对角线是正样本, 非对角线是 in-batch 负样本\n  Loss = (CE(softmax(S 每行), 对角) + CE(softmax(S 每列), 对角)) / 2\n  (对称 InfoNCE, 让图→文和文→图都 align)\n\nZero-shot 分类做法:\n  类别名 (cat/dog/...) 写成 prompt: 'a photo of a cat'\n  Text encoder 编码 → 类别向量 t_c\n  Image encoder 编码 → v\n  对比相似度 v · t_c, argmax 选类别\n\n为什么 zero-shot 强:\n  4 亿网络图文对训练, 覆盖几乎任何概念\n  text encoder 能编码自然语言, 不限固定类别集\n  ImageNet zero-shot top-1 76%, 没看过任何 ImageNet 训练样本\n\n后续影响: 几乎所有多模态模型 (LLaVA/SD/DALL-E) 都用 CLIP encoder."
+  },
+  {
+    "knowledge_card_title": "LLaVA",
+    "question": "LLaVA 的视觉特征怎么跟 LLM 对齐？两阶段训练分别在干什么？",
+    "answer": "架构:\n  Vision Encoder (CLIP ViT-L/14): 输入图像 → patch features 256 个 × 1024 dim\n  Projection MLP: 1024 → LLM dim (4096 for Vicuna-7B), 2 层简单 MLP\n  LLM (Vicuna/LLaMA): 把 projected vision tokens 当 LLM 输入 token, 直接拼到文本 prompt 前面\n\n两阶段训练:\nStage 1 (Pre-training, alignment):\n  数据: 558K 图-caption 对 (CC3M 筛选)\n  Freeze vision encoder + LLM, 只训 projection MLP\n  目标: 让 projection 把 vision token 映射到 LLM 能理解的空间, alignment\n\nStage 2 (Visual Instruction Tuning):\n  数据: 158K GPT-4 生成的 (图像, 多轮指令对话) 数据\n  Freeze vision encoder, 训 projection + LLM (LoRA 或全参)\n  目标: 让模型听懂多模态指令, 做问答/对话/推理\n\n关键创新: 用 GPT-4 把 image caption 改写成 instruction 形式生成训练数据 (合成数据范式)\n\n后续: Qwen-VL/InternVL 改用更细图像分割 (1k+ vision token) + 更强 vision encoder, 性能大幅超 LLaVA."
+  },
+  {
+    "knowledge_card_title": "Whisper",
+    "question": "Whisper 怎么训出 99 语言 ASR？推理工程优化怎么做？",
+    "answer": "训练:\n  数据: 68 万小时网络音频弱监督 (互联网上的字幕配对, 不是人工标注)\n  多任务: 同时学 ASR (转写)、翻译 (源语言→英文)、语种检测、时间戳\n  特殊 token 当任务开关 (<|en|>、<|translate|>、<|transcribe|>)\n  Encoder-Decoder Transformer, 端到端\n\n语种覆盖:\n  Top 数据量: 英文 ~44 万小时 + 99 种语言总 24 万小时\n  小语种 (越南/印地) 也能跑 (虽然 WER 比英文高)\n\n推理工程:\n1) faster-whisper: 用 CTranslate2 (C++) 实现, 比官方 PyTorch 快 4-5× (CPU 也快很多)\n2) whisper.cpp: 纯 C++ 移植, 量化到 INT8/INT4, 树莓派/手机能跑\n3) WhisperX: 加 wav2vec2 强制对齐做精确时间戳\n4) Distil-Whisper: 蒸馏后 6× 小, 5× 快, 准确率几乎不降\n\n后续: OpenAI 跟 Voice Mode 用 GPT-4o 端到端语音 (不经过文本中间态), 这是下一代."
+  },
+  {
+    "knowledge_card_title": "ML 系统设计流程",
+    "question": "ML 系统设计面试怎么答？6 步标准流程？",
+    "answer": "标准 6 步 (任何题都套):\n\n1) 问题澄清 (5 min)\n  - 业务目标: 提升 CTR? 留存? GMV?\n  - 用户量级: DAU? QPS? Latency SLA?\n  - 数据: 有什么 ground truth? 标注预算?\n  - 约束: 模型大小? 推理延迟? 在线/离线?\n\n2) 评估指标 (3 min)\n  - 离线: AUC/NDCG/Recall@k 等\n  - 在线: CTR/CVR/留存\n  - 护栏: 多样性/公平性/不能让某指标崩\n  - 业务指标 ≠ 模型指标, 两边都要考虑\n\n3) 数据 (5 min)\n  - 数据源: 哪里来? 怎么打标? 多久新增?\n  - 采样: 正负比例? 难负样本? 时间窗?\n  - 数据漂移监控: 训测分布一致性\n\n4) 特征 + 模型 (10 min)\n  - 特征: 用户/物品/上下文/时序/交叉\n  - 模型: 从简单 (LR/GBDT) → 深度 (DNN/Transformer)\n  - 训练策略: 在线 vs 离线, 增量\n\n5) 部署 + 监控 (5 min)\n  - 离线训练 + 在线推理 (model serving)\n  - 监控: 模型性能 + 数据漂移 + 系统指标\n  - 灰度发布: 1% → 10% → 50% → 全量\n\n6) Trade-offs + 改进方向 (3 min)\n  - 知道每个选择的代价\n  - 准备 1-2 个 follow-up 改进点 (面试官爱问)\n\n注意: 不要直接堆模型, 先问清需求再设计."
+  },
+  {
+    "knowledge_card_title": "A/B Test",
+    "question": "A/B test 怎么设计？哪些坑要注意？",
+    "answer": "设计步骤:\n\n1) 假设 (Hypothesis)\n  - H1: 新算法比旧算法 CTR 高 (具体到指标)\n  - 准备好接受 'no significant change' 的可能\n\n2) 指标\n  - 主指标 (OEC, Overall Evaluation Criterion): 1 个核心业务指标\n  - 护栏指标: 不能崩的 (留存/总营收)\n  - 诊断指标: 帮助理解 why\n\n3) 分流\n  - hash(user_id) % 100 < 50 → A, 否则 B (稳定分流, 用户多次访问命中同一组)\n  - 小流量起 1%, 验证无 bug 后 5% / 10% / 50%\n\n4) 样本量\n  - 计算所需样本 N = ... f(min detectable effect δ, baseline, σ, α=0.05, β=0.2)\n  - 典型推荐场景 N ~ 几百万 users / 1-2 周\n\n5) 统计检验\n  - 二项指标 (CTR): z-test\n  - 连续指标 (GMV): t-test 或 bootstrap\n  - 校正多次比较 (Bonferroni)\n\n常见坑:\n- SRM (Sample Ratio Mismatch): A/B 流量比例和预期不符 → 分流 bug 或 selection bias, 必须排查\n- Novelty effect: 新功能短期火, 长期回落, 用 holdout 2-4 周看长期\n- 季节性: 跨节假日实验失真, 用 difference-in-difference\n- 互相干扰: 推荐和搜索同时实验互相影响 → 分层实验\n- Peeking: 提前看显著性, 用 sequential test 校正"
+  },
+  {
+    "knowledge_card_title": "Feature Store",
+    "question": "为什么需要 Feature Store？训-推特征不一致问题怎么解？",
+    "answer": "为什么需要 Feature Store:\n1) 训-推一致: 离线 (Python/Spark 算特征训练) vs 线上 (C++/Java 算特征推理) 经常实现略不同, 导致线下 AUC 涨线上崩\n2) 复用: 多个团队各自造同样的特征 (用户年龄/RFM) 重复劳动\n3) 实时: 当前用户行为要 < 100ms 算成特征喂模型\n4) 版本: 特征定义会改, 需要版本管理\n5) 监控: 特征值分布漂移要报警\n\nFeature Store 提供:\n  - Online store (低延迟 KV, e.g., Redis/Aerospike): 服务推理\n  - Offline store (Parquet/Hive): 服务训练\n  - Feature registry: 特征元数据 + 定义\n  - 同步: 离线计算的特征 sync 到 online\n  - Materialization: 特征转换 pipeline\n\n训-推一致解法:\n  1) 同一份特征定义代码 (Python), 离线用 Spark batch 跑, 线上用同一段 Python 在 stream 跑\n  2) 关键: 离线和线上从 Feature Store 拿同一个 'point-in-time correct' 特征 (训练用的就是当时线上看到的版本)\n  3) Backfill: 历史特征也按时间点存, 重训能复现\n\n开源代表: Feast (Tecton 创始团队), Hopsworks, Featureform; 阿里 Ali-Feature-Hub, 字节自研 Bytef.\n\n这就是为什么离线 AUC 涨在线跌 §推荐流程 那题第 3 个原因."
+  },
+
+  {
+    "knowledge_card_title": "Stable Diffusion",
+    "question": "ControlNet 怎么给 SD 加结构控制 (边缘/姿态/深度)？",
+    "answer": "需求: 普通 SD 只能用 text prompt 控制, 难指定精确结构 (人物姿态、建筑边缘).\n\nControlNet (Zhang 2023) 思路:\n  Clone SD 的 U-Net encoder 一份做 'control branch'\n  control branch 输入是条件图像 (canny 边缘/openpose 骨架/depth map)\n  control branch 输出加到 SD U-Net 的对应层 (skip 后位置)\n  关键: 用 zero convolution (初始化为 0 的 1×1 conv) 连接, 训练初期 control branch 输出 = 0 = SD 不变, 训练慢慢学控制信号 (不会破坏 SD 原有能力)\n\n训练:\n  Freeze SD U-Net, 只训 control branch + zero conv\n  数据: (条件图, prompt, 目标图像)\n  单 GPU 几天就能训一个新的 control 类型\n\n应用:\n  Canny ControlNet: 给边缘图生成同构图\n  OpenPose: 给骨架生成对应姿势的人\n  Depth: 给深度图生成同结构图\n  多个 ControlNet 可叠加: 边缘 + 姿态 + 深度 同时控制\n\n这是 AIGC 应用普及的关键工具."
+  },
+  {
+    "knowledge_card_title": "RoPE",
+    "question": "RoPE 长度外推怎么做？NTK / YaRN 是什么？",
+    "answer": "问题: RoPE 训练时序列长度 L, 推理时想用 4L 甚至 16L, 直接外推效果崩.\n  原因: 高频维度 (大 θ_k) 的旋转角度 i·θ_k 在 i > L 时进入未见过的区域\n\nPosition Interpolation (PI):\n  把推理位置 i' = i · L_train / L_inference\n  等价于把所有维度的角度缩到训练范围内\n  简单但损失高频信息\n\nNTK-aware Scaling (2023):\n  只缩高频 (大 θ_k 的维度), 不动低频\n  公式: θ_k' = θ_k / s^(2k/d_h)\n  其中 s = L_inference / L_train\n  保留高频局部信息的同时让低频外推\n  无需训练直接用, 效果好得多\n\nYaRN (2023):\n  NTK-by-parts: 不同频段不同缩放策略\n  + temperature 调整 (attention 缩放系数)\n  + 少量 fine-tune\n  当前 SOTA, LLaMA-3.1 用类似方案外推到 128k\n\n实践: ChatGLM/Qwen 用 PI; LLaMA-2 long context 用 NTK; LLaMA-3.1 用 YaRN 类方法."
+  },
+  {
+    "knowledge_card_title": "AI Agent 核心流程",
+    "question": "Agent 评估的难点？端到端 / 步骤级 / cost 三个层次怎么评？",
+    "answer": "Agent 评估难点:\n1) 多步任务, 中间步骤都重要, 不能只看终态\n2) 同一任务多条合法路径, 不能死比对 ground truth\n3) 工具调用副作用 (写数据库/发消息) 难评估和回滚\n4) cost (token + 工具调用) 是关键约束\n\n三层评估:\n\n端到端 (Outcome-based):\n  - Task success rate: 任务完成率\n  - Answer correctness: 给定问题终态正确率 (用 LLM judge 评)\n  - 用户满意度: 真人 thumbs up/down\n\n步骤级 (Process-based):\n  - Tool selection accuracy: 在每一步是否选了对的工具\n  - Argument accuracy: 调用参数正确率\n  - Plan quality: 整体规划合理性 (LLM judge)\n  - Trajectory similarity: 跟 golden trajectory 比对 (用编辑距离或 BLEU)\n\nCost / Efficiency:\n  - Token usage: 平均 / p99 token 消耗\n  - Tool calls: 平均工具调用次数, 是否冗余\n  - Latency: 端到端时间\n  - $ cost: 实际钱算出来\n\n基准:\n  - GAIA: 一般化助手能力\n  - MINT-Bench: 多轮工具交互\n  - AgentBench: 8 类环境综合\n  - τ-bench: 客服 agent\n\n实战: 工业 agent 都自己造领域 eval set + LLM-as-judge + 灰度真实用户验证. (这是你 PhD 方向的研究空间)"
+  }
+]

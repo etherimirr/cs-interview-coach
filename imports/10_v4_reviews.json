@@ -1,0 +1,176 @@
+[
+  {
+    "knowledge_card_title": "进程 vs 线程",
+    "question": "进程和线程的区别？为什么线程切换比进程快？",
+    "answer": "区别: 进程有独立地址空间, 线程共享进程的地址空间/堆/文件描述符, 各自只有栈和寄存器.\n\n线程切换快的原因:\n1) 不切地址空间 → 不刷 TLB (进程切换会让 TLB 失效, 后续访存要重走页表)\n2) 不换页表基址寄存器 (CR3)\n3) 不切打开的文件描述符表\n4) 只保存/恢复栈指针 + PC + 通用寄存器, 几十 ns 级\n\n进程切换还涉及 cache 局部性丢失, 实测比线程切换慢 5-10×."
+  },
+  {
+    "knowledge_card_title": "线程同步",
+    "question": "死锁的 4 个必要条件？怎么破？",
+    "answer": "4 条件 (缺一不可):\n1) 互斥: 资源同时只能一个线程持有\n2) 不可剥夺: 已持有的不能被强行收回\n3) 持有等待: 持有资源时还能申请新资源\n4) 循环等待: 进程链 P1→P2→...→Pn→P1 互相等待\n\n破除任一:\n- 破 (1): 资源可共享 (读写锁的读模式)\n- 破 (2): OS 强制 preempt (难, 影响一致性)\n- 破 (3): 一次性申请所有需要的资源 (饿不饿肚子)\n- 破 (4): 资源按序号编号, 强制按升序申请 (最常用, 工程上务必约定加锁顺序)\n\n检测: 资源分配图找环; 银行家算法 (避免)."
+  },
+  {
+    "knowledge_card_title": "虚拟内存",
+    "question": "什么是缺页中断？TLB 是干嘛的？",
+    "answer": "缺页中断 (Page Fault):\n  访问的虚拟地址映射的物理页不在内存 (被换出 / 还没分配 / 权限错)\n  CPU 触发硬件 trap → 切换内核态 → OS 处理:\n    - Minor fault: 页在内存但没建立 PTE → 直接建\n    - Major fault: 页在磁盘 swap → 从 swap 读回, 慢 (ms 级)\n    - Segfault: 非法访问 (野指针) → 杀进程\n  恢复 PTE 后重新执行触发指令\n\nTLB (Translation Lookaside Buffer):\n  页表项的 CPU 缓存, 把虚拟页号 → 物理页号映射缓存\n  命中省一次页表查找 (4 级页表要 4 次内存访问)\n  TLB 通常 64-1024 项, 命中率 95%+\n  进程切换会 flush TLB (因为虚→物映射变了), 除非用 PCID/ASID 标签隔离."
+  },
+  {
+    "knowledge_card_title": "IO 多路复用",
+    "question": "select / poll / epoll 区别？为什么 epoll 高并发更优？",
+    "answer": "select:\n- fd_set 用 bitmap, 上限 1024\n- 每次调用要拷贝整个 fd 集合到内核\n- 内核遍历所有 fd 检查就绪 O(n)\n- 用户态也要遍历 O(n)\n\npoll:\n- 用数组没 1024 限制\n- 仍是 O(n) 扫描 + O(n) 拷贝\n\nepoll (Linux):\n- 三个系统调用: epoll_create (建 fd) / epoll_ctl (注册 fd) / epoll_wait (等就绪)\n- 内核用红黑树存所有注册的 fd (O(log n) 增删)\n- 内核维护就绪链表, 事件触发时回调加入\n- epoll_wait 直接返回就绪 fd 数组, O(就绪数) 不是 O(总数)\n- 不需要每次拷贝整个 fd 集合\n\n高并发 (10w+ fd, 但只 100 个活跃): select/poll 浪费 99% CPU 扫不活跃的; epoll 只看活跃的, CPU 几乎 0 开销.\n\nLT vs ET (epoll 触发模式): LT 默认, 数据没读完会持续通知; ET 边缘触发只通知一次, 必须一次性读完 (要配合 non-blocking + 循环读到 EAGAIN)."
+  },
+  {
+    "knowledge_card_title": "TCP 三次握手",
+    "question": "为什么 TCP 是三次握手不是两次或四次？",
+    "answer": "为什么不是两次:\n  假设两次 (client SYN → server ACK → 连接建立)\n  问题: 一个早已失效的旧 SYN (网络绕路晚到的) 到达 server, server 直接 ACK 建立, 但 client 根本没在等这个连接\n  结果: server 资源浪费在无效连接, 等不到 client 数据\n  三次的第三次 ACK 让 client 确认 'server 的 ACK 不是回旧 SYN 的', 防止此问题\n\n为什么不是四次:\n  按理 client → SYN → server, server → ACK + SYN → client (合并 ACK 和 SYN), client → ACK → server\n  Server 的 ACK 和 SYN 都是发给 client 的, 完全可以合并成一个包 (节省一次网络往返)\n  没必要拆成四次\n\n本质: 三次握手是'双方都确认对方收发能力'的最小次数 (各发一个 SYN + 对对方 SYN 的 ACK = 4 个动作, 但 server 的 ACK+SYN 可合并 = 3 包)."
+  },
+  {
+    "knowledge_card_title": "TCP 四次挥手",
+    "question": "为什么 TIME_WAIT 要等 2MSL？大量 TIME_WAIT 怎么办？",
+    "answer": "为什么 2MSL (Maximum Segment Lifetime, 通常 30s-2min):\n1) 确保最后一个 ACK 到达对方. 如果丢了, 对方会重发 FIN, 这边 TIME_WAIT 内能再 ACK; 如果没等就关, 对方会一直 FIN 重发收 RST 报错\n2) 让本连接的旧报文段在网络中消亡 (走丢/绕路晚到的), 否则新连接 (同 4 元组) 可能收到上次的旧数据, 导致数据错乱\n\n2MSL 是单程 + 回程, 才能保证旧报文段彻底消失.\n\n大量 TIME_WAIT 的问题:\n- 端口耗尽 (server 不会, client 主动关连接会; 因为 server 是被动关 → CLOSE_WAIT)\n- 文件描述符耗尽\n\n解决:\n1) tcp_tw_reuse: 允许 TIME_WAIT 状态的连接复用 (作为 client 发起新连接), 注意时间戳保护\n2) SO_REUSEADDR: server 重启能复用端口\n3) tcp_tw_recycle: 已废弃 (NAT 环境会出问题, Linux 4.12 移除)\n4) 长连接 + 连接池 (根本解决)"
+  },
+  {
+    "knowledge_card_title": "TCP 拥塞控制",
+    "question": "BBR 和 CUBIC 有什么本质区别？",
+    "answer": "CUBIC (Linux 默认):\n- 基于丢包的拥塞控制: 丢包 = 拥塞信号 → cwnd 减半\n- cwnd 按三次曲线增长 (起初快, 接近上次崩溃点慢, 超过后又快)\n- 问题: 高带宽长延迟链路 (跨大洲) 利用率低, 因为要等丢包才知道拥塞 (这时 buffer 已塞满)\n\nBBR (Google 2016):\n- 基于带宽和延迟模型: 探测瓶颈带宽 BtlBw 和最小 RTT (RTprop)\n- 目标: 发送速率 ≈ BtlBw, in-flight 数据 ≈ BDP (bandwidth-delay product)\n- 不靠丢包判断 → 不会被 router 大 buffer 误导 (bufferbloat)\n- 4 阶段: STARTUP (指数增) → DRAIN (排空 buffer) → PROBE_BW (动态探测带宽) → PROBE_RTT (周期测真实 RTT)\n\n效果: 跨国 / 5G / 卫星等长肥管道, BBR 比 CUBIC 吞吐高 2-25 倍. YouTube/Google.com 全量 BBR.\nBBRv2/v3 改进了与 CUBIC 共存的公平性问题."
+  },
+  {
+    "knowledge_card_title": "HTTPS 握手",
+    "question": "HTTPS 怎么防中间人攻击？证书链怎么验证？",
+    "answer": "中间人攻击 (MITM): 攻击者插在 client 和 server 之间, 截获并冒充双方.\n\nHTTPS 防护:\n1) 证书认证: server 必须出示由受信 CA 签名的证书, client 验证签名链\n2) 公钥加密 (协商对称密钥): client 用 server 公钥加密 pre-master secret, 只有持有私钥的真 server 能解\n3) 对称加密通信: 协商出的会话密钥加密所有数据\n\n证书链验证 (浏览器/OS 自动做):\n1) 拿到 server 证书 → 看 issuer 字段\n2) 在本地信任根 CA 库找 issuer 的证书 → 用 CA 公钥验签 server 证书的签名\n3) 如果 issuer 是中间 CA → 链上找到根 CA 直到本地信任\n4) 验证证书未过期、域名匹配、未被吊销 (CRL/OCSP/OCSP stapling)\n\n弱点 + 应对:\n- CA 被攻破签恶意证书 → Certificate Transparency 公示日志 + HPKP\n- 自签证书 → 弹窗警告用户\n- 降级攻击 → HSTS 强制 HTTPS"
+  },
+
+  {
+    "knowledge_card_title": "事务隔离级别",
+    "question": "MySQL 默认 RR 怎么避免幻读？还是说没完全避免？",
+    "answer": "幻读: 同事务两次范围查询, 两次之间别的事务插入新行, 第二次看到新行.\n\nMySQL InnoDB 在 RR 级别下:\n- 普通 select (快照读, snapshot read): MVCC 读快照, 完全看不到新插入的行 → 无幻读\n- 当前读 (select ... for update / lock in share mode / update / delete): 读最新版本, 此时 InnoDB 会加 Next-Key Lock (行锁 + 间隙锁)\n  → 范围 (a, b) 被锁住, 别人不能在此范围插入\n  → 也无幻读\n\n结论: MySQL InnoDB 在 RR 级别下基本解决了幻读, 是 Repeatable Read + 范围锁的双保险.\n\n但严格 SQL 标准: RR 仍允许幻读, 只有 Serializable 才完全禁止. InnoDB 比标准更强."
+  },
+  {
+    "knowledge_card_title": "MVCC",
+    "question": "InnoDB 的 MVCC 是怎么实现的？undo log 起什么作用？",
+    "answer": "InnoDB 每行隐藏 3 个字段:\n- DB_TRX_ID: 最近修改这行的事务 ID\n- DB_ROLL_PTR: 指向 undo log 链\n- DB_ROW_ID: 隐式主键\n\n写操作 (update/delete) 把旧版本写入 undo log, DB_ROLL_PTR 指过去, 形成历史版本链.\n\n读操作 (select 快照读):\n1) 事务开始时生成 ReadView, 含:\n   - m_ids: 当前活跃 (未提交) 事务 ID 列表\n   - min_trx_id: 最小活跃事务 ID\n   - max_trx_id: 下一个分配的事务 ID\n   - creator_trx_id: 当前事务自己 ID\n2) 遍历版本链, 找到第一个'可见'版本:\n   - DB_TRX_ID == creator_trx_id → 自己改的, 可见\n   - DB_TRX_ID < min_trx_id → 比所有活跃都早提交, 可见\n   - DB_TRX_ID > max_trx_id → 还未开始, 不可见\n   - min_trx_id < DB_TRX_ID < max_trx_id, 看是否在 m_ids: 在 = 未提交不可见, 不在 = 已提交可见\n\nundo log 作用:\n1) MVCC 历史版本来源\n2) 事务回滚 (rollback) 撤销修改\n3) 崩溃恢复一部分\n\nRC vs RR 差别: RC 每次 select 重新生成 ReadView (能看到新提交), RR 整个事务用同一 ReadView (快照一致)."
+  },
+  {
+    "knowledge_card_title": "InnoDB 索引",
+    "question": "什么是回表？覆盖索引怎么避免？最左前缀匹配是什么？",
+    "answer": "回表:\n  InnoDB 二级索引 (非主键索引) 的叶子节点存的是主键值, 不是整行\n  如果 select 的列不在二级索引里, 需要拿主键再去聚簇索引里查整行 = 二次查找 = 回表\n\n例: 表 t(id PK, name idx, age, addr)\n  SELECT name FROM t WHERE name='x';  → 不用回表 (name 在索引里)\n  SELECT * FROM t WHERE name='x';     → 要回表 (要 age/addr)\n\n覆盖索引避免回表:\n  让 select 的所有列都在某个索引里\n  联合索引 (name, age) → SELECT age FROM t WHERE name='x' 不回表\n  EXPLAIN 看 Extra 列出现 'Using index' = 覆盖索引\n\n最左前缀:\n  联合索引 (a, b, c) 等价 3 个索引: (a), (a,b), (a,b,c)\n  能用: WHERE a=? / WHERE a=? AND b=? / WHERE a=? AND b=? AND c=?\n  不能用: WHERE b=? / WHERE c=? / WHERE b=? AND c=? (没 a)\n  范围查询会中断: WHERE a=? AND b>? AND c=? → c 用不上 (b 范围之后 c 没序)\n\n实战: 联合索引设计时, 把'等值条件多 + 区分度高'的列放前面."
+  },
+
+  {
+    "knowledge_card_title": "Redis 数据结构",
+    "question": "ZSet 为什么用跳表不用红黑树？",
+    "answer": "ZSet 需求: 有序 + 支持范围查询 + 按 score 排序 + 按 member 查询 + O(log n) 增删\n\n跳表 vs 红黑树:\n1) 范围查询: 跳表底层是有序链表, 找到起点直接顺着 next 遍历 O(k); 红黑树范围查需要中序遍历 + 回溯, 实现更复杂\n2) 实现复杂度: 跳表 ~200 行 C 代码, 红黑树要平衡旋转 ~800 行\n3) 内存: 跳表多一些指针 (但 Redis 调过参数: p=0.25 让平均层数 1.33, 内存可控)\n4) 并发友好: 跳表上锁更细粒度\n\n两者时间复杂度都是 O(log n), 性能在 Redis 场景下差不多. 选跳表主要是 '简单 + 范围查询天然适合'.\n\n额外: ZSet 同时维护一个 hashtable (member → score), 让 ZSCORE O(1); zadd/zrange 才走跳表."
+  },
+  {
+    "knowledge_card_title": "缓存击穿/穿透/雪崩",
+    "question": "缓存穿透怎么解？布隆过滤器原理？",
+    "answer": "缓存穿透: 查询不存在的 key, 缓存 miss, 每次都打 DB. 攻击者可以恶意查不存在的 ID 把 DB 打死.\n\n解法:\n1) 缓存空值: key 在 DB 也不存在 → 缓存一个 null 值 (短 TTL, 比如 5min), 后续直接 cache hit\n   缺点: 攻击者用随机 key 时, 大量空值堆缓存\n2) 布隆过滤器 (Bloom Filter):\n   - 在缓存前加一层, 布隆过滤器存所有'可能存在'的 key\n   - 查询时先查布隆: 不存在 → 直接返回, 不走缓存/DB\n   - 存在 → 走正常缓存 → DB 流程\n\n布隆过滤器原理:\n  位数组 (bit array) + k 个独立哈希函数\n  插入: 对 key 算 k 个 hash, 把对应 bit 位置 1\n  查询: 算 k 个 hash, 任一 bit 为 0 → 一定不存在; 全为 1 → 可能存在 (有假阳性)\n\n特点:\n  + 空间极省 (1 亿 key 用 ~120MB, 假阳率 1%)\n  + 查询 O(k)\n  - 假阳性 (假阴性没有)\n  - 不支持删除 (Counting Bloom Filter 支持)\n\n典型用法: Redis BloomFilter 模块, 或客户端用 Guava BloomFilter."
+  },
+
+  {
+    "knowledge_card_title": "限流算法",
+    "question": "令牌桶和漏桶有什么区别？怎么选？",
+    "answer": "漏桶 (Leaky Bucket):\n- 想象一个底部有洞的桶, 请求像水进来, 水以固定速率漏出 (处理)\n- 桶满了新请求溢出 (丢弃 / 排队)\n- 输出速率严格固定 (匀速)\n- 不允许突发\n\n令牌桶 (Token Bucket):\n- 一个桶, 固定速率往桶里加令牌, 上限是桶容量\n- 请求来时消耗令牌, 桶空了则拒绝/等待\n- 桶满时允许短时突发 (一次性消耗满桶令牌)\n\n选择:\n- 漏桶: 想严格平滑流量 (防下游被突发打挂) → 比如调用支付/三方 API\n- 令牌桶: 允许短突发 + 平均 QPS 受限 → 大部分场景 (Nginx limit_req, Sentinel, Guava RateLimiter)\n\n工程上 99% 用令牌桶, 因为业务通常希望 'okay 突发一下, 但长期不超量'.\n\n分布式限流: 上面是单机的; 分布式用 Redis + Lua 脚本实现原子计数, 或用 Sentinel 集群模式."
+  },
+
+  {
+    "knowledge_card_title": "CAP 定理",
+    "question": "CAP 三选二是不是 'AP 系统就完全没有一致性'？",
+    "answer": "不是. CAP 里的 C 特指'强一致' (Linearizability), AP 系统牺牲的是'强一致', 但能保证'最终一致' (Eventual Consistency).\n\n最终一致: 给一段时间不再写, 所有副本最终会收敛到同一状态. 但短时间可能不一致 (用户看到旧数据).\n\n现实例子:\n- DNS: 改一条记录, 全球 DNS 缓存几小时才更新 (AP + 最终一致)\n- 朋友圈: 你发一条, 朋友可能 1 秒后看到; 100% 不会看不到 (最终一致)\n- Cassandra/DynamoDB: 多副本可调一致性 (QUORUM / ONE / ALL), 读写一致性级别决定收敛速度\n\n实际选型框架: 看业务对'实时一致'的容忍度.\n- 银行账户: CP 必选 (不能转账后立刻看到余额没变)\n- 社交动态: AP 可接受 (晚 1 秒看到也行)\n- 配置中心: CP (配置必须强一致, 不然集群行为不一)\n\nPACELC 更精细: 没分区时还有 latency vs consistency 的权衡."
+  },
+
+  {
+    "knowledge_card_title": "Raft 共识算法",
+    "question": "Raft 怎么选举？怎么保证日志一致？",
+    "answer": "选举:\n1) 初始所有节点是 Follower, 各自有'选举超时' (150-300ms 随机)\n2) Follower 在超时内没收到 Leader 心跳 → 变 Candidate, 自己投自己一票, 把 term+1, RequestVote RPC 给其他节点\n3) 节点收到 RequestVote, 同 term 内只投一次 (先到先得), 投给候选人的条件: 候选人的 log 至少和自己一样新\n4) Candidate 收到多数派同意 → 成 Leader, 立刻发心跳维持\n5) 同 term 多个 Candidate 平票 → 等下一轮 (随机超时避免持续冲突)\n\n日志复制:\n1) Client 写请求到 Leader\n2) Leader append entry 到本地 log (uncommitted)\n3) Leader 并行 AppendEntries RPC 给所有 Follower\n4) 多数派 Follower 确认 append 成功\n5) Leader 把这条 commit (commitIndex++) → 应用到 state machine → 返回 client\n6) 下次心跳/AppendEntries 时告诉 Follower 新 commitIndex, Follower 各自 apply\n\n安全性关键 (Leader Completeness):\n- 必须含有所有已 commit 的 log 才能当选 (RequestVote 时比较 log 新旧)\n- Leader 只能 commit 当前 term 的 entry (避免覆盖已 commit 的旧 entry)\n\n实战: etcd / Consul / TiKV (TiDB) / CockroachDB / Redis Raft 都用 Raft."
+  },
+
+  {
+    "knowledge_card_title": "经典系统设计：短链",
+    "question": "短链系统怎么避免短码冲突？高并发跳转怎么扛？",
+    "answer": "避免冲突方案:\n\n方案 1 — 自增 ID + Base62 (推荐):\n  长 URL 来 → 数据库自增主键 ID → ID 转 Base62 (a-zA-Z0-9, 62 字符) → 短码\n  6 位 Base62 = 62^6 ≈ 568 亿, 永不冲突 (按需取够长就行)\n  跨多机用分布式 ID 生成器 (snowflake / 号段模式) 避免单点\n\n方案 2 — Hash + 冲突检测:\n  MD5(long_url) 截前 6 字节 → Base62 6 位 → 短码\n  存表时如果冲突, 在 long_url 后加 salt 重 hash\n  缺点: 同一 long_url 可能产生不同短码 (不一致), 要做反查\n\n高并发跳转 (千万 QPS):\n1) Redis 缓存全量短码 → 长 URL 映射 (热门 99% hit)\n2) 短码内存 hash 表 (一份短码很小, 6B + 长 URL 平均 100B = 100GB 全装内存)\n3) CDN 缓存热门短链 (边缘节点直接返 302)\n4) MySQL 分库分表 (短码 hash 取模)\n5) 跳转用 302 (临时重定向): 每次回服务统计点击; 不用 301 (浏览器缓存后不再请求, 丢统计)\n\n性能目标: 单机 5-10w QPS 容易, 全链路 < 10ms.\n\n额外: 防恶意刷 → 限流; 短码自定义 → 同一表; 过期 → TTL."
+  },
+  {
+    "knowledge_card_title": "经典系统设计：feed 流",
+    "question": "Feed 流推 vs 拉怎么选？大 V 推会爆怎么办？",
+    "answer": "推模式 (Push, fan-out on write):\n  发布时把内容 ID 写入所有粉丝的收件箱 (Redis Sorted Set, score = timestamp)\n  读时直接拉自己收件箱 → 排序 → 渲染\n  ✓ 读快 (一次查询)\n  ✗ 写放大严重: 千万粉丝大 V 发一条要写千万次, 延迟高\n  ✗ 收件箱存储贵\n\n拉模式 (Pull, fan-out on read):\n  发布只写自己的发件箱\n  读时拉自己关注的所有人的发件箱 → merge sort → 渲染\n  ✓ 写省 (只写一份)\n  ✗ 读复杂: 关注 1000 个要查 1000 个发件箱\n  ✗ 难扩展: 关注多的用户读延迟爆\n\n推拉结合 (Twitter/Weibo 主流):\n  普通用户 (粉丝 < N): 推模式. 写时直接 fan-out 到收件箱\n  大 V (粉丝 > N, 比如 > 1 万): 拉模式. 不推, 用户主动拉大 V 发件箱\n  读时: 自己的收件箱 (普通关注的推过来的) merge 关注的大 V 的发件箱 (主动拉)\n\n大 V 推优化:\n1) 异步推: 主线程立刻返回 OK, 后台 worker 慢慢推 (用户接受秒级延迟)\n2) 在线优先: 优先推给在线粉丝 (大部分粉丝当前没刷, 推了浪费)\n3) 分级推: 活跃粉丝先推, 不活跃后推或不推\n4) 折中: 大 V 不推, 走拉\n\n性能数据 (Twitter): 一条推文平均 fan-out 150, 大 V 上千万. 用混合模式 + Redis 集群."
+  },
+
+  {
+    "knowledge_card_title": "线性代数核心",
+    "question": "PCA 为什么用协方差矩阵的特征向量？SVD 怎么做 PCA？",
+    "answer": "PCA 推导:\n目标: 找方向 w (单位向量), 把数据 X (n×d, 已中心化) 投到 w 上, 最大化投影方差.\n方差 = (1/n) Σ (X_i · w)² = (1/n) w^T X^T X w = w^T Σ w  (Σ = X^T X / n 是协方差矩阵)\n约束: ||w|| = 1, 拉格朗日乘子 L = w^T Σ w - λ(w^T w - 1)\n求导: ∂L/∂w = 2Σw - 2λw = 0 → Σw = λw  ← 特征值问题\n\n结论: w 是 Σ 的特征向量, 投影方差就是对应特征值 λ.\n要 k 维投影 → 选前 k 大特征值对应特征向量.\n\nSVD 做 PCA 更稳定:\nX = UΣV^T (奇异值分解)\nX^T X = V Σ² V^T → V 的列就是 X^T X (即协方差矩阵) 的特征向量, 奇异值² 就是特征值\n直接对 X 做 SVD 拿 V 的前 k 列, 比算 X^T X (数值放大) 再特征分解稳定.\n\n实践: sklearn.decomposition.PCA 内部用 SVD."
+  },
+  {
+    "knowledge_card_title": "概率与极大似然",
+    "question": "为什么线性回归的 MSE loss 等价于高斯噪声假设下的 MLE？",
+    "answer": "假设: y = w^T x + ε, ε ~ N(0, σ²) (高斯噪声)\n\n则 y | x, w ~ N(w^T x, σ²)\n似然: p(y|x, w) = (1/√(2πσ²)) exp(-(y - w^T x)² / (2σ²))\n\nN 个样本独立, 联合似然:\nL(w) = Π p(y_i|x_i, w) = Π (1/√(2πσ²)) exp(-(y_i - w^T x_i)² / (2σ²))\n\n取对数:\nlog L(w) = N log(1/√(2πσ²)) - (1/2σ²) Σ (y_i - w^T x_i)²\n\nMLE: maximize log L(w) ⇔ minimize Σ (y_i - w^T x_i)² (其他项与 w 无关)\n\n所以 MSE loss = MLE 在高斯噪声假设下的等价形式.\n\n推广:\n- 分类交叉熵 ⇔ MLE 假设 categorical/Bernoulli\n- 拉普拉斯噪声 ⇔ L1 loss (MAE)\n- L2 正则 ⇔ MAP 加高斯先验\n- L1 正则 ⇔ MAP 加拉普拉斯先验\n\n这层映射是统计学习理论的核心 — loss 函数都对应某种概率假设."
+  },
+  {
+    "knowledge_card_title": "信息论基础",
+    "question": "为什么分类用交叉熵 loss 不用 MSE？",
+    "answer": "原因 1 — 梯度更新友好:\n分类 sigmoid + MSE: loss = (y - σ(z))²\n  ∂loss/∂z = 2(σ(z) - y) σ'(z) = 2(σ(z) - y) σ(z)(1 - σ(z))\n  当 σ(z) 接近 0 或 1, σ'(z) → 0 → 梯度消失, 训练慢\n\n分类 sigmoid + 交叉熵: loss = -y log σ(z) - (1-y) log(1-σ(z))\n  ∂loss/∂z = σ(z) - y\n  梯度直接是 '预测 - 真实', 不会因 sigmoid 饱和而消失\n  → 训练快, 稳\n\n原因 2 — 概率视角:\n交叉熵 = 最大化对数似然 = 让模型输出的概率分布逼近真实分布\nMSE 假设是回归连续值, 用在概率上不合理 (1 和 0 之间的距离全是 1, 但 0.01 → 0.5 比 0.5 → 1 信息差更大)\n\n原因 3 — 非凸 vs 凸:\nMSE + sigmoid 是非凸 loss, 多局部最优, 优化难\n交叉熵 + sigmoid 是凸 loss (单参数情况下), 全局最优可达\n\n实战: 分类必用交叉熵, 回归用 MSE/MAE/Huber, 排序用 LogLoss/pair-wise."
+  },
+
+  {
+    "knowledge_card_title": "RL 基础 (MDP)",
+    "question": "Bellman 方程是什么？value iteration 和 policy iteration 区别？",
+    "answer": "Bellman 方程 — 价值函数的递归表达:\nV^π(s) = Σ_a π(a|s) Σ_{s'} P(s'|s,a) [R(s,a,s') + γ V^π(s')]\nQ^π(s,a) = Σ_{s'} P(s'|s,a) [R(s,a,s') + γ Σ_{a'} π(a'|s') Q^π(s', a')]\n\n含义: 当前状态价值 = 即时奖励 + 折扣后下一状态价值的期望.\n\nValue Iteration (价值迭代):\n  反复用 Bellman optimality 更新: V_{k+1}(s) = max_a Σ P(s'|s,a) [R + γ V_k(s')]\n  收敛后, 贪心策略 π*(s) = argmax_a Q*(s,a)\n  一次更新所有状态, 直到 |V_{k+1} - V_k| < ε\n\nPolicy Iteration (策略迭代):\n  两步交替:\n  1) Policy Evaluation: 给定 π, 反复 Bellman 期望迭代算出 V^π\n  2) Policy Improvement: 用当前 V^π 贪心选动作得到新 π' = argmax_a Q^π\n  直到 π 不再变化\n\n对比:\n- VI 每轮迭代轻 (一次扫描) 但收敛慢 (需要很多轮)\n- PI 每轮重 (要完整 evaluate) 但收敛快 (少轮次, 通常 < 10)\n\n实践: PI 用得多. 但都需要 P (转移概率) 已知 = model-based.\nModel-free (P 未知): Monte Carlo / TD learning / Q-learning."
+  },
+  {
+    "knowledge_card_title": "DQN",
+    "question": "DQN 的三个 trick (Experience Replay / Target Network / ε-greedy) 各解决什么问题？",
+    "answer": "三个核心 trick:\n\n1) Experience Replay (经验回放):\n  问题: 强化学习数据是序列相关的 (s_t 和 s_{t+1} 高度相关), 直接用违反 SGD 的 iid 假设\n  解决: 存所有 (s, a, r, s') 到 buffer (典型 10w-100w), 训练时随机采 batch, 打破时间相关性\n  额外好处: 同一经验可多次复用 (sample efficiency↑)\n  扩展: Prioritized Replay (按 TD error 优先级采样)\n\n2) Target Network (目标网络):\n  问题: Q-learning 的 target y = r + γ max_a Q(s', a; θ) 用的是当前 Q 网络参数 θ\n  这导致 target 和 Q 都依赖 θ, 训练时 target 一直变, 像追自己的尾巴, 不稳\n  解决: 用一个滞后的 θ_target (定期 copy θ 过去, 比如每 10000 step 同步一次)\n  target y = r + γ max_a Q(s', a; θ_target) 是稳定目标\n  扩展: soft update (τ-小步同步) 比 hard copy 更平滑\n\n3) ε-greedy (探索):\n  问题: 纯贪心 (always argmax Q) 会陷在初始 Q 估计的错误最优中, 不探索别的动作\n  解决: 概率 ε (典型 0.1) 随机选动作, 1-ε 贪心\n  ε 随训练 decay (从 1.0 退到 0.05), 早期多探, 后期多利用\n  替代: Boltzmann 探索 (按 softmax(Q) 采样)\n\n这三个 trick 让 DQN 在 Atari 上 first time 超越人类水平."
+  },
+  {
+    "knowledge_card_title": "PPO",
+    "question": "PPO 的 clipped surrogate objective 怎么算？为什么要 clip？",
+    "answer": "PPO 用的是 policy gradient + importance sampling:\n  L^PG(θ) = E_t [log π_θ(a_t|s_t) · A_t]  (经典 REINFORCE)\n  改用旧策略采样 + 新策略评估: L(θ) = E_t [r_t(θ) · A_t]\n  其中 r_t(θ) = π_θ(a|s) / π_old(a|s) 是新旧策略概率比\n\n问题: 如果 r_t 很大 (新策略大幅偏离旧策略), 一次更新会跳很远, 策略可能崩\n\nPPO 解 — Clipped Objective:\n  L^CLIP(θ) = E_t [ min( r_t(θ) A_t,  clip(r_t(θ), 1-ε, 1+ε) A_t ) ]\n  其中 ε=0.2\n\n直观:\n  当 A_t > 0 (这个动作好, 想增大其概率), r_t 增大 loss 增大\n    但 r_t > 1+ε 时被 clip 住, 梯度 = 0, 不再激励增大\n  当 A_t < 0 (这个动作差, 想减小其概率), r_t 减小 loss 增大 (因为 A_t<0)\n    但 r_t < 1-ε 时被 clip 住, 梯度 = 0\n\n效果: 限制每步策略最多偏离 [0.8, 1.2] 倍旧策略, 避免破坏性更新.\n\n完整 PPO loss: L = L^CLIP - c1 · L^VF + c2 · S[π]\n  - L^VF: critic 的 value 函数 MSE loss\n  - S[π]: 熵正则, 鼓励探索\n  - c1=0.5, c2=0.01\n\nGAE (Generalized Advantage Estimation) 算 A_t: 平衡偏差方差.\n\n实战: RLHF 用 PPO 是标准. 现代趋势 DPO (去掉 reward model 和 critic) / GRPO (DeepSeek, 去 critic)."
+  },
+
+  {
+    "knowledge_card_title": "Python GIL",
+    "question": "GIL 怎么影响多线程？什么场景该用什么？",
+    "answer": "GIL 影响:\n- 任意时刻只一个线程执行 Python 字节码\n- 多线程在 CPU 密集任务上没加速 (8 核照样只用 1 核)\n- 反而上下文切换开销让多线程更慢\n\n但 IO 密集多线程仍有用:\n- 线程等 IO 时主动释放 GIL\n- 其他线程能拿到 GIL 执行\n- 适合: 大量并发 HTTP 请求、数据库查询、文件读写\n\n选择:\n| 场景 | 方案 |\n|------|------|\n| IO 密集, 少量并发 (< 100) | threading (简单) |\n| IO 密集, 高并发 (1000+) | asyncio (单线程协程, 内存省) |\n| CPU 密集, 单机 | multiprocessing (每进程独立 GIL) |\n| CPU 密集, 多机 | Ray / Dask / Spark |\n| 数值计算 | NumPy/PyTorch (底层 C/C++ 释放 GIL, 即使在主线程也并行) |\n\nPython 3.13 (2024) 引入 PEP 703: 可选关闭 GIL (free-threaded build), 但许多 C 扩展还不兼容. 真正普及预计 Python 3.16+ (2027).\n\nJython / IronPython 没有 GIL (因为是 JVM/.NET 上跑), 但生态弱."
+  },
+
+  {
+    "knowledge_card_title": "C++ 智能指针",
+    "question": "shared_ptr 怎么实现引用计数？为什么 weak_ptr 解决循环引用？",
+    "answer": "shared_ptr 实现:\n内部有两部分:\n1) 指向对象的指针 T*\n2) 指向控制块 (control block) 的指针, 控制块含:\n   - strong count: 共享 owner 数量\n   - weak count: weak_ptr 数量\n   - 删除器 / 分配器\n\n操作:\n- 构造: strong = 1\n- 拷贝/赋值: strong++ (原子操作 atomic, 多线程安全)\n- 析构: strong-- → 减到 0 时调用 delete 对象 (但控制块只在 weak 也归 0 时才释放)\n- weak_ptr 也指控制块, weak++/-- 但不影响对象\n\n循环引用问题:\nclass Parent { shared_ptr<Child> c; };\nclass Child { shared_ptr<Parent> p; };  // 互相强引用\n\nParent p, p.c = make_shared<Child>(), p.c.p = ... → Parent 和 Child 互相 strong ref\n两者 strong count 永远 ≥ 1, 即使所有外部引用都消失, 内存泄漏.\n\nweak_ptr 解决:\nclass Child { weak_ptr<Parent> p; };  // 改用弱引用\nweak_ptr 不增 strong count, 只增 weak count\nParent 析构后, Child.p.lock() 返回 nullptr (探测对象是否还活着)\n\n规则: 双向关系中, '反方向' (child 指 parent / observer 指 subject) 用 weak_ptr.\n\n性能: shared_ptr 拷贝有原子操作开销 (~10ns), 大量拷贝 hot path 用 unique_ptr 或裸指针."
+  },
+
+  {
+    "knowledge_card_title": "Docker 与容器",
+    "question": "Docker 容器和虚拟机本质区别？为什么容器轻量？",
+    "answer": "本质区别:\n\nVM (虚拟机, Hypervisor 型):\n  Hypervisor (KVM/VMware/Xen) → Guest OS (完整 Linux) → 应用\n  每 VM 独立 kernel, 启动几 GB 内存, 分钟启动\n  隔离强 (硬件级隔离, kernel 漏洞不影响 host)\n  安全适合多租户云 (AWS EC2 等)\n\nContainer (容器):\n  Host OS kernel → Container (用 namespace 隔离视图 + cgroup 限资源) → 应用\n  共享 host kernel, 没有 guest OS\n  启动秒级, 占内存 MB\n  隔离弱 (kernel 漏洞能横向逃逸; gVisor/Kata 加沙箱)\n\n容器轻量原因:\n1) 无 guest OS, 没 hypervisor 二层调度\n2) 共享 host kernel 内存\n3) 镜像分层 (OverlayFS) 复用, 不重复存\n4) 进程级隔离, 直接调度到 host CPU\n\n性能:\n- 启动: VM 30s vs Container 0.5s\n- 内存开销: VM 1-2GB vs Container 50MB\n- CPU: 容器 ≈ host 原生, VM 有 5-10% loss\n- IO: 容器原生快, VM 经 hypervisor 慢\n\n实战:\n- 微服务 / CI/CD / K8s 调度: 容器\n- 多租户云 / 强隔离: VM (AWS Lambda 内部其实用 microVM Firecracker, 兼得轻量和隔离)"
+  },
+
+  {
+    "knowledge_card_title": "Kubernetes 核心",
+    "question": "K8s 滚动升级怎么做？流量怎么不丢？",
+    "answer": "RollingUpdate 策略 (Deployment 默认):\nstrategy:\n  type: RollingUpdate\n  rollingUpdate:\n    maxSurge: 25%      # 升级时可超出期望副本的比例\n    maxUnavailable: 25% # 升级时允许不可用的比例\n\n过程:\n1) 创建新 ReplicaSet (新镜像), 启动 1 个新 Pod\n2) 新 Pod ready (readinessProbe 通过) 后, 杀 1 个旧 Pod\n3) 重复, 直到全部替换\n\n流量不丢的关键:\n1) readinessProbe: 必须配! 没 ready 的 Pod 不接流量 (Service 不路由)\n2) preStop hook + terminationGracePeriodSeconds:\n   Pod 收到 SIGTERM → 先调 preStop (典型 sleep 5-10s 让 LB 摘流)\n   然后应用收到 SIGTERM 优雅退出 (处理完正在的请求再关)\n   超过 grace period 强杀 SIGKILL\n3) 应用层: 收到 SIGTERM 立刻把 readiness 改成 false, 服务进入 draining 模式 (不接新请求, 处理完老的)\n4) Service 的 endpoints 更新有延迟 (kubelet → API server → endpoints controller → kube-proxy 全链路 ~ 几秒), 所以 preStop 加 sleep 等更新生效\n\n回滚: kubectl rollout undo deployment/xxx, 切回上个 ReplicaSet, 秒级.\n\n更安全策略:\n- Blue/Green: 两套并存切流量 (Argo Rollouts 支持)\n- Canary: 灰度发布, 1% → 10% → 全量, 失败自动回滚\n- 配合 service mesh (Istio) 做流量比例切分"
+  },
+
+  {
+    "knowledge_card_title": "Kafka 核心",
+    "question": "Kafka 为什么快？怎么保证消息不丢/不重？",
+    "answer": "Kafka 快的关键:\n1) 顺序写磁盘: append-only log, 顺序写比 SSD 随机读还快 (磁盘 ~100MB/s, SSD 随机 ~30MB/s)\n2) PageCache: 写直接进 OS PageCache, 读也从 cache 命中, 内存级\n3) 零拷贝 sendfile: 文件 → socket 直接走内核, 不经用户态 (省 2 次拷贝)\n4) 批量 + 压缩: producer batch 后整包发, 压缩 (snappy/lz4/zstd) 减网络\n5) 分区并行: topic 多 partition, 多 producer/consumer 并行读写\n\n消息不丢:\nProducer 侧:\n  acks=all: 所有 ISR (in-sync replicas) 都确认才返回 (最强一致)\n  acks=1: leader 确认即可 (默认, leader 挂可能丢)\n  acks=0: 发了就不管 (最快, 易丢)\n  retries=N: 失败重试\n\nBroker 侧:\n  min.insync.replicas=2: ISR 至少 2 个, 否则 producer 写失败 (防 leader 单点)\n  unclean.leader.election.enable=false: 不让落后副本当 leader (防数据回退)\n\nConsumer 侧:\n  enable.auto.commit=false + 手动 commit: 业务处理完才 commit offset, 防消息丢\n\n消息不重 (Exactly-Once):\n1) Producer 幂等 (enable.idempotence=true): broker 用 (PID, sequence) 去重\n2) 事务: 跨 partition / 跨 topic 原子写, transactional.id 唯一\n3) Consumer: 读完消息处理 + commit offset 必须原子 (用业务的事务包裹, 或者用 Kafka 内置事务 read-process-write)\n\n实战: Flink Kafka exactly-once 经典实现就是用 Kafka 事务."
+  },
+  {
+    "knowledge_card_title": "Spark vs Flink",
+    "question": "Spark Streaming 和 Flink 在状态管理上有什么差别？",
+    "answer": "Spark Structured Streaming:\n- 微批处理 (micro-batch), 每个 batch 是一次 mini job\n- 状态存在 RocksDB (Spark 3+) 或内存, 跨 batch 持久化\n- 容错靠 checkpoint + WAL, exactly-once 通过 idempotent sink\n- 延迟: 秒级 (batch interval, 通常 100ms-10s)\n\nFlink:\n- 真流处理 (event-by-event), 单事件级别延迟\n- 状态后端: HashMapStateBackend (内存, 小状态) / EmbeddedRocksDBStateBackend (大状态)\n- 状态原生支持 keyed state (按 key 分布式存) 和 operator state\n- Checkpoint: 异步快照 (Chandy-Lamport 算法), 不停流即可 snapshot\n- 容错 exactly-once: 通过 Checkpoint + Two-Phase Commit Sink (Kafka 事务)\n- 延迟: 毫秒级\n\n状态管理深度差异:\n1) Flink 提供 ValueState / ListState / MapState 等 API, 类型化操作; Spark 状态用 mapGroupsWithState API, 显式管理 GroupState\n2) Flink 状态可水平扩展 (rescaling); Spark 重启时按 key 分组重分布\n3) Flink 支持 Queryable State (外部查询运行时状态); Spark 不支持\n4) Flink 的 TTL state cleanup 更细 (按 key); Spark 用 watermark\n\n选择:\n- 离线 + 准实时大数据 ETL → Spark 强 (生态成熟)\n- 真实时低延迟 (风控/IoT/CEP) → Flink 强\n- 一站式 (批 + 流) → Spark (统一 DataFrame) 或 Flink (Flink SQL 1.13+ 也行)\n\n趋势: Flink 在国内大厂 (字节/阿里/快手) 全面 first-class, Spark 仍占离线 ETL."
+  },
+
+  {
+    "knowledge_card_title": "CPU 缓存",
+    "question": "什么是 false sharing？怎么发现和避免？",
+    "answer": "False Sharing:\n两个线程在不同核心上修改两个'不同变量', 但这两个变量恰好落在同一个 cache line (64 字节)\n→ 每次一方修改, 另一方所在核心的 cache line 失效, 必须 reload (MESI 一致性协议)\n→ 频繁失效 + reload, 实际表现像两个变量在竞争\n→ 性能可能比单线程还慢 (~100× 退化)\n\n例子:\nstruct Counter { int a; int b; };  // a 和 b 共占 8 字节, 同一 cache line\nThread1 反复 ++counter.a, Thread2 反复 ++counter.b\n貌似无竞争, 实际 false sharing 严重\n\n发现:\n1) Linux perf stat -e cache-misses,L1-dcache-load-misses, 看 cache miss 是否异常高\n2) perf c2c (Linux 4.10+) 直接定位 false sharing\n3) Intel VTune\n\n避免:\n1) Padding 把热点变量填满整个 cache line:\n   struct alignas(64) Counter { int a; char pad[60]; };\n2) thread-local 各自一份, 最后 reduce:\n   每线程 thread_local int local_counter; 累加, 退出时合并到全局\n3) atomic / lock 看起来更慢但避免 false sharing 反而更快 (内存语义统一)\n\n实战: Java JDK 8+ 有 @Contended 注解自动 padding; C++17 std::hardware_destructive_interference_size 是 cache line 大小 hint."
+  },
+  {
+    "knowledge_card_title": "GPU 架构",
+    "question": "GPU 上的 warp 是什么？branch divergence 怎么影响性能？",
+    "answer": "Warp:\nNVIDIA GPU 上, 32 个线程被打包成一个 warp\nWarp 是 SM (Streaming Multiprocessor) 调度的最小单元\nWarp 内 32 线程同时执行同一条指令 (SIMT, Single Instruction Multiple Threads)\n每个线程有独立寄存器/操作不同数据, 但 PC (program counter) 是共享的 warp 级\n\nBranch Divergence:\nif (threadIdx.x < 16) {\n    // 路径 A\n} else {\n    // 路径 B\n}\n\n问题: 一个 warp 内 32 个线程, 16 个走 A, 16 个走 B\nGPU 会:\n1) 先让走 A 的 16 个线程执行 A, 另 16 个 mask 掉 (空跑)\n2) 再让走 B 的 16 个执行 B, 另 16 个 mask 掉\n串行执行两个分支 → 性能减半\n\n如果同一 warp 内全部走同一分支 → 无 divergence, 满速\n\n影响因素:\n- 分支条件依赖 threadIdx → 容易 divergence\n- 分支依赖数据 → 跟数据分布有关\n\n优化:\n1) 让 warp 内线程走相同分支 (按 warp 边界排序数据)\n2) 用无分支算法 (用算术替代条件: result = mask ? a : b 可能仍 divergence; 用 max/min/select 更好)\n3) Predicate execution (短分支): GPU 内置, 短 if 体自动转 mask 计算两路再选\n4) 重排数据让相似工作的线程在同 warp\n\n极端例子: warp 内 32 线程都走不同分支 (32 路 if-else) → 性能 1/32, 实际不可用."
+  }
+]

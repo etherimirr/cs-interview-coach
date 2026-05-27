@@ -1,0 +1,234 @@
+[
+  {
+    "knowledge_card_title": "前缀和",
+    "question": "子数组和为 K 的最短子数组怎么做？时间复杂度？",
+    "answer": "思路: 前缀和 + 哈希表存值的最早位置.\n步骤:\n  1) 维护 prefix[i] = a[0..i] 求和\n  2) 哈希表 mp 存 prefix → 最早出现的 index\n  3) 遍历右端点 i, 若 prefix[i] - K 在表里, 候选答案 = i - mp[prefix[i]-K]\n  4) 若 prefix[i] 不在表, 写入 (保证最早)\n复杂度: 时间 O(n), 空间 O(n).\n注意: 有负数不能用滑窗, 必须前缀和+哈希."
+  },
+  {
+    "knowledge_card_title": "滑动窗口",
+    "question": "滑动窗口的适用前提是什么？什么时候不能用？",
+    "answer": "适用: ① 全正数; ② 区间连续; ③ 单调性 (扩窗增/减某指标).\n不适用: 数组含负数, 因为扩窗未必使和增大, 滑窗无单调性 → 改前缀和+哈希.\n经典题: 无重复字符最长子串 (right 扩, hash 计数, left 收缩去重)."
+  },
+  {
+    "knowledge_card_title": "二分答案",
+    "question": "二分答案的核心思想？怎么判断一个题能不能用？",
+    "answer": "核心: 在答案的取值空间二分, 写一个 check(x) 判定 x 是否可行.\n能用的判据:\n  ① 答案空间单调 (可行性随 x 单调变化)\n  ② check 函数可在 O(n) 或 O(n log n) 写出\n场景: 最小最大值 / 最少操作 / 最少资源.\n复杂度: O(n log V), V 为答案空间.\n模板: l=lo, r=hi; while l≤r: mid; if check(mid): ans=mid; r=mid-1; else l=mid+1."
+  },
+  {
+    "knowledge_card_title": "BFS",
+    "question": "为什么无权图最短路径必须用 BFS 而不是 DFS？",
+    "answer": "BFS 按层扩展, 第一次访问到节点的步数 = 起点到它的最短距离, 出队即终态.\nDFS 沿一条路径走到底回溯, 第一次到达终点的路径未必最短.\n口诀: 无权最短路 → BFS, 有权图 → Dijkstra / SPFA, 连通块/拓扑 → DFS."
+  },
+  {
+    "knowledge_card_title": "DFS",
+    "question": "DFS 的空间复杂度怎么算？爆栈怎么办？",
+    "answer": "递归栈深度 = O(深度). 二叉树平衡时 O(log n), 链状时 O(n); 一般图 O(V).\n爆栈解法:\n  1) 改迭代 + 显式栈\n  2) 尾递归优化 (Python 不支持)\n  3) sys.setrecursionlimit 调大 (临时, 不解决根本)"
+  },
+  {
+    "knowledge_card_title": "哈希表",
+    "question": "哈希冲突解决有哪几种？各自优缺点是什么？",
+    "answer": "两大类:\n1) 链地址法 (拉链法): 每个桶挂链表/红黑树, 冲突元素挂上去\n   ✓ 实现简单, 删除方便, 装载因子可以高\n   ✗ 链表过长退化查询, 指针有内存开销, 缓存不友好\n2) 开放寻址法: 冲突后向后探测找空位 (线性/二次/双重哈希)\n   ✓ 内存紧凑, 缓存友好\n   ✗ 删除麻烦 (要用标记), 容易聚集, 装载因子不能太高\n口述: Java HashMap 用链地址, Python dict 用开放寻址 (扰动+二次探测)."
+  },
+  {
+    "knowledge_card_title": "数组 vs 链表",
+    "question": "数组和链表的核心区别？各自的适用场景？",
+    "answer": "存储: 数组连续内存 / 链表非连续靠指针\n访问: 数组 O(1) 随机 / 链表 O(n) 顺序\n增删: 数组中部 O(n) 移位 / 链表已知位置 O(1) 改指针\n内存: 数组定长易溢出/浪费 / 链表动态分配\n适用:\n  数组 → 频繁查询、随机访问、数据量稳定 (用 dynamic array 还能均摊扩容)\n  链表 → 频繁中间插删、数据量动态、不需随机访问"
+  },
+  {
+    "knowledge_card_title": "过拟合",
+    "question": "什么是过拟合？怎么解决？",
+    "answer": "定义: 训练集表现好、测试集差, 模型把训练集噪声也学进去了.\n解决五层组合拳:\n  1) 数据: 加数据 / 数据增强 / 合理切分 train/val\n  2) 模型: 降复杂度 / 剪枝 (树) / 减层数 (DL)\n  3) 正则: L1/L2 / Dropout / 权重衰减\n  4) 训练: 早停 (early stop) / 交叉验证\n  5) 特征: 特征筛选去掉冗余/噪声特征"
+  },
+  {
+    "knowledge_card_title": "L1 vs L2 正则化",
+    "question": "L1 和 L2 正则有什么区别？什么时候用 L1？",
+    "answer": "L2 (岭): 损失加 ‖w‖² → 权重整体平滑趋 0, 不会稀疏, 防过拟合最常用\nL1 (Lasso): 损失加 |w| → 把不重要特征权重压到 0, 产生稀疏解\n选 L1: 想自动做特征筛选 / 高维特征空间想压缩模型\n几何解释: L1 是菱形, 角碰到优化点 → 必出 0; L2 是圆, 切点偏 0 但不等于 0"
+  },
+  {
+    "knowledge_card_title": "逻辑回归 (LR)",
+    "question": "逻辑回归的原理？为什么叫'回归'但是分类？",
+    "answer": "原理: 线性加权求和 z = w·x + b, 再过 Sigmoid σ(z) = 1/(1+e^-z) 压到 (0,1) 作为正类概率, 0.5 分界.\n训练: 极大似然估计 (等价于交叉熵 loss) + 梯度下降.\n叫'回归': 因为本质是广义线性模型, 输出连续的概率值; 加阈值才是分类决策.\n优点: 可解释 (权重就是特征贡献)、推理快、风控/排序常用."
+  },
+  {
+    "knowledge_card_title": "GBDT",
+    "question": "GBDT 的核心思想？为什么用残差/负梯度？",
+    "answer": "核心: 串行训练多棵决策树, 每一棵新树拟合前面所有树的残差 (一阶负梯度), 累加结果作为最终预测.\n用负梯度: 把'残差'推广到任意可导损失, 一阶 Taylor 展开下负梯度方向就是 loss 下降最快的方向, 让树去拟合它就等于做了一步梯度下降.\n关键超参: 学习率 (shrinkage) / 树的数量 / 树深."
+  },
+  {
+    "knowledge_card_title": "XGBoost",
+    "question": "XGBoost 相比传统 GBDT 改进了什么？",
+    "answer": "1) 二阶 Taylor (用一阶 + 二阶导数), 收敛更准\n2) 目标函数自带 L1/L2 正则 (惩罚叶子值和数量), 防过拟合\n3) 预排序 + 分位点算法, 支持精确/近似分裂\n4) 缺失值自动学习方向 (Sparsity-aware)\n5) 工程: 列块存储 + 并行分裂查找, 多线程加速\n6) 支持自定义损失"
+  },
+  {
+    "knowledge_card_title": "LightGBM",
+    "question": "LightGBM 为什么比 XGBoost 快？",
+    "answer": "三个核心:\n1) 直方图算法: 把连续特征离散化到 256 个桶, 分裂只在桶上枚举, 速度↑内存↓\n2) Leaf-wise 生长: 每次选增益最大的叶子分裂 (XGB 是 level-wise 同层一起分), 同样树数效果更好但易过拟合 → 用 max_depth 限制\n3) GOSS + EFB: 梯度单边采样 (大梯度全留小梯度采样) + 特征互斥捆绑 (稀疏特征合并)\n工业海量数据首选 LightGBM."
+  },
+  {
+    "knowledge_card_title": "决策树分裂准则",
+    "question": "ID3 / C4.5 / CART 三种分裂准则的区别？",
+    "answer": "ID3: 信息增益 = 熵 - 条件熵; 偏向取值多的特征 (一个 id 列就分干净).\nC4.5: 信息增益比 = 信息增益 / 特征自身熵; 修正 ID3 偏向问题.\nCART: 基尼系数 Gini = 1 - Σp²; 计算更快, 必为二叉分裂, 能做分类也能回归 (回归用 MSE).\n工业最常用 CART (XGBoost/LightGBM 底层都用)."
+  },
+  {
+    "knowledge_card_title": "样本不均衡",
+    "question": "样本不均衡问题怎么处理？为什么不能看 accuracy？",
+    "answer": "三个维度叠加:\n1) 采样: 上采样少数类 (SMOTE 插值) / 下采样多数类\n2) 损失: 类别加权 class_weight='balanced' / Focal Loss (难样本聚焦)\n3) 指标: 不看 accuracy (全猜多数类也高), 用 AUC / 召回 / F1 / PR 曲线\n业务侧: 调阈值 (默认 0.5 不一定最优, 看 F1 最大点).\n为什么不看 accuracy: 99% 正常 / 1% 异常的数据, 模型全猜正常 acc=99%, 但召回=0."
+  },
+  {
+    "knowledge_card_title": "归一化 vs 标准化",
+    "question": "归一化和标准化的区别？分别什么时候用？",
+    "answer": "归一化 Min-Max: x' = (x - min) / (max - min) → 缩到 [0, 1]\n  ✓ 受极端值影响大, 适合分布有界、固定范围的特征 (图像像素、年龄)\n标准化 Z-Score: x' = (x - μ) / σ → 均值 0 方差 1\n  ✓ 不受极端值影响 (相对), 适合分布近似高斯、梯度下降类模型 (LR、SVM、神经网络)\n口诀: 神经网络/LR/SVM → 标准化; 图像/有边界特征 → 归一化; 树模型 → 都不用 (对单调变换不变)."
+  },
+  {
+    "knowledge_card_title": "分类评价指标",
+    "question": "精确率、召回率、F1、AUC 分别什么含义？什么时候看哪个？",
+    "answer": "精确率 Precision = TP / (TP+FP): 预测正里真的正的比例 → 关心'报上去都靠谱'\n召回率 Recall = TP / (TP+FN): 真实正被预测到的比例 → 关心'不能漏'\nF1 = 2PR/(P+R): 调和平均, 不均衡时比 accuracy 好\nAUC: ROC 曲线下面积, 模型整体排序区分能力, 与阈值无关\n场景:\n  风控/医疗 → 召回 (漏报代价高)\n  广告推荐/排序 → AUC / NDCG\n  发邮件警报 → 精确率 (误报扰民)\n  不均衡 → F1"
+  },
+  {
+    "knowledge_card_title": "BN vs LN",
+    "question": "BatchNorm 和 LayerNorm 有什么区别？为什么 Transformer 用 LayerNorm 不用 BatchNorm？",
+    "answer": "BN: 对一个 batch 内、每个特征通道分别归一化 (跨样本同特征), 适合 CV.\nLN: 对单个样本内、所有特征做归一化 (单样本内全维度), 适合 NLP/RNN/Transformer.\nTransformer 用 LN 三大原因:\n  1) 序列长度不固定, BN 的统计量难一致\n  2) 推理时 batch 可能为 1, BN 用 moving avg 不准\n  3) NLP 同位置不同样本语义无关, 跨 batch 归一化没意义\n现代 LLM 更用 RMSNorm (LN 去中心化版, 计算更快)."
+  },
+  {
+    "knowledge_card_title": "激活函数对比",
+    "question": "Sigmoid / ReLU / GELU 各自优缺点？大模型为什么用 GELU/SwiGLU？",
+    "answer": "Sigmoid: 输出 (0,1), 易梯度消失, 输出非零中心 → 已退场, 只用于二分类输出\nTanh: 零中心, 比 Sigmoid 好但仍易梯度消失\nReLU: max(0,x), 缓解梯度消失计算快, 但 dead neuron (负区间死)\nGELU: x·Φ(x), 更平滑可导, BERT/GPT 标配\n大模型常用 SwiGLU (LLaMA): Swish(xW) ⊙ (xV), 门控机制更强表达力, FFN 性能更好"
+  },
+  {
+    "knowledge_card_title": "梯度消失与爆炸",
+    "question": "梯度消失和爆炸为什么会发生？怎么缓解？",
+    "answer": "原因: 反向传播链式法则梯度连乘, |∂L/∂w| 各层连乘\n  <1 越乘越小 → 消失 (深层无法更新)\n  >1 越乘越大 → 爆炸 (NaN/震荡)\n缓解组合拳:\n  1) 激活: 用 ReLU 系替代 Sigmoid (导数在正区间为 1)\n  2) 残差连接: 给梯度开一条无障碍路 (ResNet/Transformer)\n  3) 归一化: BN/LN 让每层输出分布稳定\n  4) 初始化: Xavier/Kaiming, 让前向/反向方差保持\n  5) 梯度裁剪 (爆炸专属): clip_grad_norm 限制最大范数"
+  },
+  {
+    "knowledge_card_title": "Dropout",
+    "question": "Dropout 的原理？训练和推理时怎么处理？",
+    "answer": "原理: 训练时按概率 p 随机把神经元输出置 0, 等价训练一个模型集成. 防止神经元过度依赖固定输入组合, 抑制过拟合.\n训练: 每层每次 forward 重新随机 mask, 保留的神经元输出除以 (1-p) (inverted dropout, 保持期望)\n推理: 关闭 dropout, 不丢弃 (因为训练时已 scale 过, 推理直接用)\n注意: 推理千万别忘 model.eval(), BatchNorm/Dropout 都会切到推理模式."
+  },
+  {
+    "knowledge_card_title": "SGD vs Adam",
+    "question": "SGD 和 Adam 怎么选？为什么大模型用 AdamW？",
+    "answer": "SGD (+momentum): 收敛慢, 但泛化好, CV 训练经典选择\nAdam: 动量 + 自适应学习率 (一阶矩 m + 二阶矩 v), 收敛快, 调参轻, 但泛化略弱\n大模型用 AdamW: 原 Adam 的 L2 实现把正则混进了梯度更新, AdamW 把 weight decay 解耦出来, 行为更接近真正的 L2.\n选择口诀: 调参时间多/想压泛化用 SGD, 工程交付/快速验证用 AdamW."
+  },
+  {
+    "knowledge_card_title": "Self-Attention",
+    "question": "Self-Attention 的公式是什么？为什么要除以 √d_k？",
+    "answer": "公式: Attention(Q,K,V) = softmax(QK^T / √d_k) · V\n步骤:\n  1) 输入 X 经三个线性层得 Q、K、V (shape: [seq, d_k])\n  2) QK^T 得 attention scores [seq, seq]\n  3) 除 √d_k (缩放), softmax 归一化得权重\n  4) 加权 V 得输出\n为什么除 √d_k: d_k 大时点积方差 ≈ d_k, softmax 输入太大梯度饱和 (softmax 退化为 one-hot), 除 √d_k 把方差控回 1, 保持梯度可训练."
+  },
+  {
+    "knowledge_card_title": "Multi-Head Attention",
+    "question": "为什么要多头注意力？每个头维度是多少？",
+    "answer": "动机: 单头只能学一种注意力模式; 多头让每个头关注不同子空间 (语义/句法/位置距离等), 拼接后表达力更强.\n做法: 把 d_model 切成 h 份, 每头维度 d_k = d_model / h\n  独立做 Q/K/V 投影 + attention, 然后 concat + 线性投影回 d_model\n参数量: 总参数和单头 (d_model, d_model) 一样, 没增加.\n现代变种: MHA → MQA (共享 KV) → GQA (分组共享), 为推理省 KV cache."
+  },
+  {
+    "knowledge_card_title": "Transformer",
+    "question": "Transformer 整体结构？相比 RNN 优势在哪？",
+    "answer": "结构: Encoder + Decoder\n  Encoder block = Multi-Head Self-Attn → Add&LN → FFN (2 层 MLP) → Add&LN\n  Decoder block = Masked Self-Attn → Add&LN → Cross-Attn (encoder K/V) → Add&LN → FFN → Add&LN\n相比 RNN 优势:\n  1) 完全并行: 不用 t-1 才能算 t, GPU 利用率高\n  2) 长程依赖: 直接全连接 attention 看到任意距离, RNN 衰减\n  3) 可堆叠深 (残差 + LN), 表达力强\n现代大模型几乎都用 Decoder-only (自回归生成, 训练推理统一)."
+  },
+  {
+    "knowledge_card_title": "残差连接",
+    "question": "残差连接为什么能 work？解决什么问题？",
+    "answer": "原理: f(x) = x + sublayer(x), 给反向传播开一条恒等通路.\n解决两个问题:\n  1) 梯度消失: 反向时 ∂f/∂x = I + ∂sublayer/∂x, 至少有 1 的部分能通, 不会全死\n  2) 退化: 实验发现深网络比浅网络反而差; 有残差时网络可学习'什么都不做'(sublayer=0 即恒等), 至少不更差\n等价于让网络学习残差 Δ, 比直接学映射更容易."
+  },
+  {
+    "knowledge_card_title": "位置编码",
+    "question": "为什么 Transformer 需要位置编码？现在主流是什么？",
+    "answer": "需要原因: Self-Attention 是排列不变的 (打乱输入顺序结果不变), 没有位置信息就无法区分'狗咬人'和'人咬狗'.\n演进:\n  1) 原版 Sin/Cos 绝对位置编码: 可外推但效果一般\n  2) 可学习位置 embedding (BERT): 长度受限, 不能超过训练长度\n  3) 相对位置 (T5, Transformer-XL): 直接编 i-j\n  4) RoPE (LLaMA/Qwen/Mistral 主流): 旋转矩阵, 点积自然反映相对位置, 外推好\n  5) ALiBi: 直接给 attention 加位置偏置, 极简且外推"
+  },
+  {
+    "knowledge_card_title": "LoRA",
+    "question": "LoRA 是什么？为什么省显存还能保持效果？",
+    "answer": "做法: 冻结大模型主干 W, 在 attention 的 Q/V 投影矩阵旁加一个低秩分解 ΔW = BA (B: d×r, A: r×d, r << d, 典型 r=8~32). 训练只更新 A、B.\n参数量: r=8 时新增参数 ≈ 主干 0.1%, 训练显存大幅下降.\n为什么效果不掉: LLM 微调时的有效更新本身就是低秩的 (论文实验), 低秩近似足够.\nQLoRA = 主干 4bit 量化 + LoRA, 单卡 24GB 可微调 65B.\n推理: 把 BA 合并回 W 不增加 latency, 或多 adapter 动态切换."
+  },
+  {
+    "knowledge_card_title": "AI Agent 核心流程",
+    "question": "一个 Agent 的核心 loop 是什么？怎么评估 Agent 好不好？",
+    "answer": "核心 loop (ReAct 风格): 感知 Observation → 思考 Thought → 行动 Action (调用工具) → 观察新 Observation → 反思 → 直到任务完成\n关键组件:\n  1) Planner: LLM 拆解任务\n  2) Tool calling: function calling / MCP 协议\n  3) Memory: short-term (上下文) + long-term (向量库)\n  4) Reflection: 自我评估、纠错重试\n评估难点 (这是你 PhD 方向):\n  - Task success rate (端到端)\n  - 步骤 traceability / replay\n  - Cost (token / tool call 次数)\n  - 工具调用准确率\n常用 framework: LangGraph / AutoGen / CrewAI"
+  },
+  {
+    "knowledge_card_title": "推荐系统整体流程",
+    "question": "推荐系统的四阶段是什么？各阶段用什么模型？",
+    "answer": "1) 召回 Recall (千万 → 千): 双塔模型 (in-batch negative) / i2i / u2i / 多路召回\n2) 粗排 Coarse Ranking (千 → 几百): 轻量 DNN, 平衡速度和效果\n3) 精排 Fine Ranking (几百 → 几十): 重型 DNN (DIN/DeepFM/SIM/AutoInt), 用全特征做 CTR/CVR 预估\n4) 重排 Re-ranking (几十 → 推荐结果): 多目标 (PRM/SetRank), 业务规则 (打散/多样性/疲劳度)\n离线评估: AUC / GAUC / NDCG; 线上看 A/B 业务指标 (CTR/CVR/停留)"
+  },
+  {
+    "knowledge_card_title": "交易异常检测",
+    "question": "如何用算法做风控异常检测？有监督和无监督分别什么时候用？",
+    "answer": "通用四步:\n  1) 特征工程: 用户时序、行为统计、金额频次、跨账户关联\n  2) 有监督 (有标注的欺诈样本): GBDT/XGBoost 二分类, 阈值给召回率\n  3) 无监督 (冷启动 / 标注少): 孤立森林 Isolation Forest / 聚类离群点 / AutoEncoder 重构误差\n  4) 时序基线: LSTM/Transformer 学正常行为, 偏离阈值判异常\n选择: 有足够标注 → 有监督 (准但需标注), 标注稀缺/新场景 → 无监督, 时序明显 → 加时序模型."
+  },
+  {
+    "knowledge_card_title": "金融时序预测建模",
+    "question": "金融时间序列预测怎么建模？传统方法 vs 深度学习怎么选？",
+    "answer": "传统: ARIMA / Prophet (Facebook), 适合数据少、有明显趋势季节性、可解释要求高\n深度: LSTM / TCN / Informer / Autoformer (时序 Transformer)\n通用做法: 滑动窗口构造历史序列特征, 把预测变成回归任务训练\n关键考虑:\n  1) 数据非平稳: 差分、log 变换、滚动归一化\n  2) 多尺度: 短期、长期、季节性分量\n  3) 评估: MAE/RMSE/MAPE/方向准确率 (金融场景看方向比看具体数字重要)\n  4) 业务: 不能 leak 未来信息, walk-forward 验证"
+  },
+
+  {
+    "knowledge_card_title": "KV Cache",
+    "question": "KV Cache 是什么？为什么能加速？显存代价多大？",
+    "answer": "做法: Transformer 自回归推理时缓存历史 token 的 K、V, 下一步只算新 token 的 Q · 旧 K^T.\n加速原理: 单步复杂度从 O(t²) 降到 O(t), 整体生成 n 个 token 从 O(n³) 降到 O(n²).\n显存代价: 每层每 head 存 [seq_len, d_head] 的 K 和 V; 长上下文是显存瓶颈 (推 32k 上下文显存爆).\n缓解: MQA/GQA 共享 KV 缩 H 倍, vLLM PagedAttention 分页管理减碎片, KV cache 量化到 INT8."
+  },
+  {
+    "knowledge_card_title": "Flash Attention",
+    "question": "Flash Attention 解决什么问题？相比标准 attention 怎么省内存？",
+    "answer": "问题: 标准 attention 把 N×N 的 attention matrix 物化到 HBM (GPU 显存), 受 HBM 带宽 bound, IO 占主导.\n做法:\n  1) Tile 切分 Q/K/V, 在 GPU SRAM 内做小块 attention\n  2) Online softmax 算法: 流式更新最大值和分母, 不用先存整个矩阵\n  3) 反向用前向的统计量重算 (recompute), 不存中间结果\nIO 复杂度从 O(N²) → O(N²/M), M 为 SRAM 大小\n效果: 速度 2-4×, 显存大幅下降, 支持长上下文; FlashAttn-2/3 进一步优化."
+  },
+  {
+    "knowledge_card_title": "vLLM Paged Attention",
+    "question": "vLLM 的 PagedAttention 解决什么问题？",
+    "answer": "问题: 传统推理 framework 给每个请求预分配最大长度的 KV cache, 短请求浪费、batch 难灵活.\n做法: 借鉴 OS 虚拟内存把 KV 切成固定 block (16 token), 逻辑序列连续、物理 block 离散, 按需分配释放.\n收益:\n  1) 内存碎片 < 4%, 同显存下 batch 翻倍\n  2) 配合 continuous batching: 请求随时进出 batch, GPU 持续满载\n  3) 同样吞吐量下延迟更稳\n现在工业部署 LLM 推理几乎都用 vLLM/SGLang."
+  },
+  {
+    "knowledge_card_title": "Speculative Decoding",
+    "question": "Speculative Decoding 怎么 work？为什么不改变模型输出？",
+    "answer": "做法: 小 draft model 一次性猜出 K 个 token, 大 target model 一次 forward batch 验证这 K 个 token.\n验证规则: 对每个位置, 若 draft 的 token 概率 ≤ target 的概率就接受; 否则按 (target - draft)+ 重新采样, 后面 token 丢弃.\n为什么等价: 数学上可证明这个接受/拒绝规则下采样分布 = target 单独生成的分布, 输出无损.\n加速比: 取决于 draft 命中率, 典型 1.5-2×; 关键是 batch 多 token 共用一次 target forward 的延迟.\n现代变种: Medusa (多 head 一起猜), EAGLE (用 target 中间层做 draft)."
+  },
+  {
+    "knowledge_card_title": "RoPE",
+    "question": "RoPE 怎么做的？为什么现在 LLaMA/Qwen 都用？",
+    "answer": "做法: 把 d 维向量两两一组当复数, 位置 i 旋转角度 i·θ_k (θ_k = 10000^(-2k/d)). 对 Q、K 都做旋转后再点积.\n性质: (R_i q)·(R_j k) 只依赖相对位置 i-j, 不依赖绝对位置.\n优势:\n  1) 相对位置友好 (符合语言局部性)\n  2) 长度外推性好 (NTK-aware / YaRN / Dynamic NTK 可继续延伸到训练长度的 4-8 倍)\n  3) 不增加可训练参数\n  4) 实现简单 (复数旋转 = 元素级乘法)\nLLaMA、Qwen、Mistral、Yi 全用 RoPE."
+  },
+  {
+    "knowledge_card_title": "MHA vs MQA vs GQA",
+    "question": "MHA、MQA、GQA 区别？现代 LLM 部署用哪个？",
+    "answer": "MHA (经典): h 个 head 各自独立 Q/K/V, KV cache 大\nMQA: 所有 head 共用 1 组 K/V, 只 Q 多头. KV 缩 h 倍, 推理快很多, 但训练效果略降\nGQA: 折中, h 个 head 分 g 组, 每组共享 K/V. 例 LLaMA-2 70B 用 g=8.\n现代部署: GQA 是平衡点 (KV 显存接近 MQA, 效果接近 MHA), LLaMA-2/3、Qwen、Mistral 都用.\n口诀: MHA 准、MQA 快、GQA 中庸."
+  },
+  {
+    "knowledge_card_title": "RLHF",
+    "question": "RLHF 三阶段是什么？为什么需要 RLHF？",
+    "answer": "三阶段:\n  1) SFT (Supervised Fine-Tuning): 在人工 demo 数据上微调, 让模型会回答指令\n  2) RM (Reward Model): 收集人类对模型回答的偏好对 (A 好 / B 好), 训一个打分模型\n  3) PPO: 用 RM 打分作为 reward, PPO 优化 SFT 模型, 加 KL 散度约束防漂移\n为什么需要: pretrain 只学'流畅 next-token', 不会对齐人类偏好 (有用/无害/诚实). 需要 RLHF 把模型行为塑形.\n现在工业常用 DPO/GRPO 替代复杂的 PPO."
+  },
+  {
+    "knowledge_card_title": "DPO",
+    "question": "DPO 和 RLHF 比的优劣？什么时候选 DPO？",
+    "answer": "DPO 做法: 跳过 reward model 和 PPO, 直接在偏好对 (chosen, rejected) 上做对比损失. 数学上等价于隐式学 reward 并 PPO.\n优势:\n  1) 流程极简: 只需一阶段训练, 无 RM, 无 rollout\n  2) 训练稳定: 不像 PPO 容易崩\n  3) 显存友好: 单 model 训练 (PPO 要 4 个: actor/critic/RM/reference)\n劣势:\n  - 依赖固定的离线偏好数据, 不能 online 探索\n  - 效果上限略低于精心调过的 RLHF\n选择: 学术/开源对齐选 DPO; 工业旗舰模型大厂仍用 RLHF (deepseek-R1 用 GRPO)."
+  },
+  {
+    "knowledge_card_title": "RAG 三阶段",
+    "question": "RAG 三阶段是什么？怎么评估 RAG 系统？",
+    "answer": "三阶段:\n  1) Indexing: 文档 → 切 chunk → 嵌入 → 写入向量库\n  2) Retrieval: query → 嵌入 → top-k 召回 → (可选) rerank\n  3) Generation: 把 top-k chunks 作为 context 拼到 prompt 喂 LLM 生成答案\n增强环节: 多路召回 (BM25 + 向量 + KG) / HyDE (LLM 先生成假设答案再检索) / query 改写 / reranker\n评估:\n  Retrieval: precision@k, recall@k, MRR\n  Generation: faithfulness (有没有瞎编)、answer relevance、context relevance\n  框架: RAGAS / TruLens 自动评\nRAG vs Fine-tune: RAG 适合知识快变、需溯源; FT 适合改变风格/行为; 可组合."
+  },
+  {
+    "knowledge_card_title": "采样策略",
+    "question": "Temperature / Top-k / Top-p 怎么选？",
+    "answer": "Temperature T: softmax(logits / T)\n  T → 0: greedy (最大概率)\n  T = 1: 原始分布\n  T > 1: 更随机, 多样性高\nTop-k: 只在概率前 k 个 token 里采样, 截断 long tail.\nTop-p (nucleus): 在累积概率 ≥ p 的最小 token 集合里采样, 动态截断, 比 top-k 更鲁棒.\n常用组合:\n  代码生成 / 数学: T=0.0~0.2 (要稳)\n  对话: T=0.7 + top_p=0.9 + top_k=50 (平衡)\n  创意写作 / 头脑风暴: T=1.0+ (要发散)"
+  },
+
+  {
+    "knowledge_card_title": "贪心",
+    "question": "贪心算法什么时候能用？怎么证明可贪心？",
+    "answer": "能用条件: 局部最优 → 全局最优 (即贪心选择性质 + 最优子结构)\n证明方法:\n  1) 交换论证 (exchange argument): 任意最优解都可以变成贪心解且不变差\n  2) 数学归纳\n  3) 暴力反例: 找不到反例 + 通过测试 = 工程上可信\n经典:\n  活动选择 (按结束时间排序贪心)\n  Huffman 编码 (合并最小两堆)\n  区间覆盖 (按起点排序)\n陷阱: 能找到反例就别贪, 改 DP."
+  },
+  {
+    "knowledge_card_title": "Python 竞赛 IO 模板",
+    "question": "Python 笔试为什么会超时？怎么写不超时？",
+    "answer": "原因: input() 慢 (内置 readline 但带额外解析), 数据量 1e5+ 行就可能 TLE.\n防超时三套模板:\n  1) input = sys.stdin.readline (取代 builtin)\n  2) 一次性读 sys.stdin.read().split(), 自己用 ptr 取\n  3) print 也要批量: 收集结果到 list 最后 '\\n'.join 一次性 print\n防错坑:\n  - 无解记得 print(-1), 不要静默\n  - 下标 0/1 起始看题目\n  - 输出严格按题意 (空格/换行)\n  - Python 自动大整数, 不用怕 int 溢出"
+  },
+  {
+    "knowledge_card_title": "差分数组",
+    "question": "什么时候用差分数组？怎么和二分答案配合？",
+    "answer": "适用: 区间批量加 / 多次覆盖 / 容量叠加 (静态查询场景, 不能动态混查).\n做法: 区间 [l,r] 整体 +v, 只需 diff[l]+=v, diff[r+1]-=v. 最后对 diff 做前缀和复原原数组.\n配合二分答案 (经典原题 - 最少扩容包):\n  二分扩容包数 k, check(k) 用差分模拟每天容量是否够\n  内层 O(n) 模拟, 外层 O(log V) 二分, 总 O(n log V)\n变种: 二维差分 (二维区间加), 三维差分 (空间体素加)."
+  },
+  {
+    "knowledge_card_title": "单调栈",
+    "question": "单调栈的核心思想？什么时候用？",
+    "answer": "核心: 维护一个单调递增/递减的栈, 每元素入栈出栈各一次, 整体 O(n).\n触发场景: 找'下一个更大/更小元素' (Next Greater / Smaller Element).\n经典题:\n  柱状图最大矩形 (LC 84): 单调递增栈找左右第一个更小\n  每日温度 (LC 739): 找下一个更暖的天\n  可见人数: 从右往左维护单调递减栈, 弹出的元素能看到当前\n套路口诀: 待找的元素满足'比当前位置 X' → 用栈维护 '反 X' 的单调序列, 新元素入栈前弹出违反单调性的旧元素."
+  }
+]

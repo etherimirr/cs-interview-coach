@@ -1,0 +1,253 @@
+[
+  {
+    "title": "前缀和",
+    "aliases": ["Prefix Sum", "prefix sum", "前缀和数组"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "把数组前 i 项的累计和预处理出来，使任意区间和 O(1) 查询：sum[l..r] = prefix[r+1] - prefix[l]。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "use_cases": [
+        { "text": "子数组和为 K（最短/最长）", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "区间和频繁查询的预处理", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "求最短：用哈希表存 prefix 第一次出现的位置；遇到 s-k 在表里就更新 min_len。", "cites": [{"source_id": "pdd-suji", "locator": "p.1, p.5"}] },
+        { "text": "求个数：用 dict 计数 prefix 值出现次数。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "pitfalls": [
+        { "text": "数组有负数时不能用滑动窗口，必须用前缀和 + 哈希。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "interview_points": [
+        { "text": "和为 K 的最短子数组：枚举右端点 i，查表里是否有 prefix=s-k，存在则候选答案 i - mp[s-k]。", "cites": [] }
+      ],
+      "code": [
+        { "text": "# 和为 K 的最短子数组\nmp = {0: -1}\ns = 0\nmin_len = float('inf')\nfor i in range(n):\n    s += a[i]\n    if s - k in mp:\n        min_len = min(min_len, i - mp[s - k])\n    if s not in mp:\n        mp[s] = i", "cites": [{"source_id": "pdd-suji", "locator": "p.2, p.5"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "滑动窗口",
+    "aliases": ["Sliding Window", "sliding window"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "用两个指针维护一个连续区间，根据条件移动左右端点，O(n) 扫描整个数组。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "定长最大/最小", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "无重复字符最长子串", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "窗口大小固定或可变都行", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "pitfalls": [
+        { "text": "适用前提：全正数 + 区间连续。出现负数就只能换前缀和+哈希。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "二分答案",
+    "aliases": ["Binary Search on Answer", "answer binary search", "二分"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "对答案的取值范围做二分：写一个 check(x) 判定 x 是否可行，二分缩到最小可行解。压轴高频。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "use_cases": [
+        { "text": "最小最大值 / 最大最小值", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "最少操作次数 / 最少资源", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "mechanism": [
+        { "text": "答案空间单调可分 → 二分。check 函数贪心或模拟即可，复杂度 O(n log V)。", "cites": [] }
+      ],
+      "code": [
+        { "text": "def check(x):\n    # 验证 x 是否可行\n    ...\nl, r = low, high\nans = r\nwhile l <= r:\n    mid = (l + r) // 2\n    if check(mid):\n        ans = mid\n        r = mid - 1\n    else:\n        l = mid + 1", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "差分数组",
+    "aliases": ["Difference Array", "diff array", "差分"],
+    "topic_ids": ["1.1", "1.5"],
+    "slots": {
+      "definition": [
+        { "text": "对一个数组做区间批量加：差分 diff 满足 a[i] = a[i-1] + diff[i]；区间 [l,r] 整体 +v 只需 diff[l]+=v, diff[r+1]-=v。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "use_cases": [
+        { "text": "区间批量加 / 多次覆盖 / 容量叠加", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "常配合二分答案做\"最少扩容包原题\"类问题", "cites": [{"source_id": "pdd-suji", "locator": "p.5"}] }
+      ],
+      "interview_points": [
+        { "text": "套路：diff[l] += 1; diff[r+1] -= 1。复原原数组就是对 diff 做前缀和。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "单调栈",
+    "aliases": ["Monotonic Stack", "monotonic stack"],
+    "topic_ids": ["1.1"],
+    "slots": {
+      "definition": [
+        { "text": "维护一个单调递增或递减的栈，每个元素只入栈出栈一次，整体 O(n)。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "下一个更大 / 更小元素", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] },
+        { "text": "可见人数 / 柱状图最大矩形", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] }
+      ],
+      "mechanism": [
+        { "text": "套路：从右往左遍历，维护单调序列；新元素压入前先弹出违反单调性的旧元素，弹出的数累计答案。", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] }
+      ],
+      "code": [
+        { "text": "# 可见人数累加\nstack = []\nres = 0\nfor i in range(n-1, -1, -1):\n    cnt = 0\n    while stack and h[stack[-1]] < h[i]:\n        stack.pop()\n        cnt += 1\n    if stack: cnt += 1\n    res += cnt\n    stack.append(i)", "cites": [{"source_id": "pdd-suji", "locator": "p.3, p.6"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "BFS",
+    "aliases": ["Breadth-First Search", "广度优先搜索", "breadth first search"],
+    "topic_ids": ["1.3"],
+    "slots": {
+      "definition": [
+        { "text": "用队列按层扩展节点，每个节点首次出队时一定是源到它的最短步数。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "迷宫最短路径（无权图）", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] },
+        { "text": "层序遍历、最少步数问题", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "口诀：最短路径一律用 BFS（无权图）。有权图改 Dijkstra / SPFA。", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] }
+      ],
+      "code": [
+        { "text": "from collections import deque\nq = deque([start])\nvis = [[-1]*m for _ in range(n)]\nvis[start] = 0\nwhile q:\n    x, y = q.popleft()\n    for dx, dy in dirs:\n        nx, ny = x+dx, y+dy\n        if 0<=nx<n and 0<=ny<m and vis[nx][ny] == -1:\n            vis[nx][ny] = vis[x][y] + 1\n            q.append((nx, ny))", "cites": [{"source_id": "pdd-suji", "locator": "p.2, p.6"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "DFS",
+    "aliases": ["Depth-First Search", "深度优先搜索"],
+    "topic_ids": ["1.3"],
+    "slots": {
+      "definition": [
+        { "text": "递归（或栈）沿一条路径走到底再回溯，访问完所有可达节点。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "连通块、拓扑排序、回溯枚举", "cites": [{"source_id": "pdd-suji", "locator": "p.2"}] }
+      ],
+      "comparison": [
+        { "text": "vs BFS：BFS 适合最短路径（按层），DFS 适合穷举/连通块；栈空间 O(深度) vs 队列空间 O(宽度)。", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "贪心",
+    "aliases": ["Greedy", "贪心算法"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "每一步选当前最优，期望累加得到全局最优；需要先证可贪心性。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "加油站问题（最少加油次数）", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "区间选点 / 区间覆盖", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "排序不等式", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "interview_points": [
+        { "text": "口诀：排序 → 每步选当前最优。能被反例打破就不要贪。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "哈希表",
+    "aliases": ["Hash Table", "HashMap", "字典", "dict"],
+    "topic_ids": ["1.4"],
+    "slots": {
+      "definition": [
+        { "text": "通过哈希函数把 key 映射到桶，期望 O(1) 增删改查。", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "去重、排名、记录最优", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] },
+        { "text": "配合前缀和定位子数组", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "interview_points": [
+        { "text": "关键词触发：保留最早 / 保留最大 / 多条件排序 → 字典存状态、最后统一排序。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Python 竞赛 IO 模板",
+    "aliases": ["Python 快速 IO", "sys.stdin", "竞赛 IO"],
+    "topic_ids": ["7.1"],
+    "slots": {
+      "definition": [
+        { "text": "Python 默认 input() 慢且按行；用 sys.stdin.readline 或 sys.stdin.read 显著加速，避免大数据量超时。", "cites": [{"source_id": "pdd-suji", "locator": "p.3"}] }
+      ],
+      "code": [
+        { "text": "# 万能快速读入（防超时、防卡评测）\nimport sys\ninput = sys.stdin.readline\n\ndef main():\n    n = int(input())\n    a = list(map(int, input().split()))\n    print(...)\n\nif __name__ == '__main__':\n    main()", "cites": [{"source_id": "pdd-suji", "locator": "p.3"}] },
+        { "text": "# 一行多组输入 / 不确定行数（最稳写法）\nimport sys\ndef main():\n    data = list(map(int, sys.stdin.read().split()))\n    ptr = 0\n    n = data[ptr]; ptr += 1\n    a = data[ptr:ptr+n]; ptr += n\n    print(...)\n\nif __name__ == '__main__':\n    main()", "cites": [{"source_id": "pdd-suji", "locator": "p.4"}] },
+        { "text": "# 输出一行多个数字\nans = [1, 2, 3, 4]\nprint(' '.join(map(str, ans)))", "cites": [{"source_id": "pdd-suji", "locator": "p.4"}] }
+      ],
+      "pitfalls": [
+        { "text": "无解记得 print(-1)，不要静默；下标 0/1 起始要看题目；输出格式严格按题意（空格/换行）。", "cites": [{"source_id": "pdd-suji", "locator": "p.3, p.4"}] },
+        { "text": "Python 自动大整数，不会 int 溢出 — 但 C++/Java 要注意。", "cites": [{"source_id": "pdd-suji", "locator": "p.4"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "拼多多笔试套路",
+    "aliases": ["PDD 笔试", "拼多多算法笔试"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "拼多多算法岗笔试 = 4 道编程题（100% 核心）+ 少量选择题（简单随缘）。无机器学习/深度学习/大模型题。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "interview_points": [
+        { "text": "8 类必考题型全覆盖：模拟+哈希+排序 / 前缀和+哈希 / 滑窗 / 贪心 / 二分答案 / 差分 / 单调栈 / BFS-DFS。", "cites": [{"source_id": "pdd-suji", "locator": "p.1, p.2"}] },
+        { "text": "考场顺序：T1 模拟哈希 10 分钟拿分 → T2 前缀和/滑窗稳过 → T3 贪心（先排序再贪）→ T4 二分+差分套模板。", "cites": [{"source_id": "pdd-suji", "locator": "p.3"}] },
+        { "text": "保命策略：不会就先过样例拿部分分；代码能跑过样例基本就能拿大部分分；前 3 题稳过 = 稳进面试。", "cites": [{"source_id": "pdd-suji", "locator": "p.3, p.7"}] }
+      ],
+      "pitfalls": [
+        { "text": "实在不会做也要输出样例答案，能骗几分；别纠结难题。", "cites": [{"source_id": "pdd-suji", "locator": "p.7"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "二分答案 + 差分（最少扩容包模型）",
+    "aliases": ["min container expansion"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "二分答案套差分 check：经典原题是\"最少多少扩容包能满足每天的需求\"——二分扩容包数 k，差分检查每天容量是否够。", "cites": [{"source_id": "pdd-suji", "locator": "p.5"}] }
+      ],
+      "code": [
+        { "text": "def check(k):\n    add = [0]*(m+2)\n    cur = cnt = 0\n    for i in range(m):\n        cur += add[i]\n        if cur < req[i]:\n            need = req[i] - cur\n            cnt += need\n            if cnt > k:\n                return False\n            cur += need\n            add[i+1] -= need\n    return True\n\nl, r = 0, sum(req)\nans = r\nwhile l <= r:\n    mid = (l + r) // 2\n    if check(mid):\n        ans = mid\n        r = mid - 1\n    else:\n        l = mid + 1\nprint(ans)", "cites": [{"source_id": "pdd-suji", "locator": "p.5"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "模拟 + 哈希 + 排序",
+    "aliases": ["simulation + hash + sort"],
+    "topic_ids": ["1.5"],
+    "slots": {
+      "definition": [
+        { "text": "拼多多 T1 高频套路：按规则模拟流程 + 用字典存中间状态 + 最后统一排序输出。10 分钟必拿分。", "cites": [{"source_id": "pdd-suji", "locator": "p.1, p.3"}] }
+      ],
+      "use_cases": [
+        { "text": "去重、排名、记录最优", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ],
+      "interview_points": [
+        { "text": "关键词触发：保留最早、保留最大、多条件排序 → 直接套这个模板。", "cites": [{"source_id": "pdd-suji", "locator": "p.1"}] }
+      ]
+    }
+  }
+]

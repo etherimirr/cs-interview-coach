@@ -24,8 +24,3 @@ vite.config.ts.timestamp-*
 
 # Local user data (knowledge base lives in ~/Library/Application Support)
 *.redb
-
-# Imports — derived from personal interview-prep materials, potentially
-# copyrighted. Not pushed publicly by default. Keep imports/README.md for
-# format reference. Owner may opt-in per file.
-imports/*.json
