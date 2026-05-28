@@ -18,6 +18,9 @@ groups:
   - id: D
     name: AI / ML
     topics: [12, 13, 14, 15, 16, 17, 18, 19, 20]
+  - id: E
+    name: 我的项目
+    topics: [21]
 
 topics:
   # ─────────── A. 计算机基础 ───────────
@@ -227,3 +230,13 @@ topics:
       - { id: 20.4, name: 推理引擎,    hint: "★ vLLM/SGLang/TensorRT-LLM/llama.cpp" }
       - { id: 20.5, name: 边缘部署,    hint: "★ Jetson/Triton/ONNX/CoreML/MLX" }
       - { id: 20.6, name: MLOps,       hint: "W&B/MLflow/feature store/model registry" }
+
+  - id: 21
+    name: 我的项目
+    short: Projects
+    children:
+      - { id: 21.1, name: 实习项目,           hint: "TIER 1 真实经历: J&J / iQIYI / SJTU / Arklex×Walmart" }
+      - { id: 21.2, name: 个人 & 学校项目,    hint: "TIER 2 高质量: An-Agent / RCRI / VT-Refine / Stockbee / Yellow Room ..." }
+      - { id: 21.3, name: 自建工具,           hint: "TIER 3: Code Review System" }
+      - { id: 21.4, name: 学习原型,           hint: "TIER 4: FitMaster / HabitLedger / DeStudy / Fan Timeline 等" }
+      - { id: 21.5, name: STAR 行为面答案池,  hint: "TIER 5: Amazon LP 各题型 STAR (以 iQIYI/SJTU 为锚)" }

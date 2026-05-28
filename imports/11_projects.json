@@ -1,0 +1,401 @@
+[
+  {
+    "title": "Johnson & Johnson Medical - CDO MT",
+    "aliases": ["J&J", "JNJ", "Johnson Johnson", "强生医疗", "JJ Medical"],
+    "topic_ids": ["21.1"],
+    "slots": {
+      "definition": [
+        { "text": "**Innovative Research Intern · Jul-Aug 2025 · Shanghai**\n\nBuilt an agent-based competitive-intelligence pipeline that automatically ingests, classifies, and benchmarks AI products from 20+ global smart-surgery companies across the entire surgical care continuum, producing a US-vs-China market map for J&J's digital science team.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**5-Step Agent Pipeline (custom Python, NOT LangChain)**\n\n```\nSOURCES (网站/PR/FDA/NMPA/CE/patents/WAIC notes)\n  ↓\n① Discovery Agent  — walk 20+ sources\n② Extractor Agent  — LLM 抽 (regulatory status, surgical phase, modality)\n③ Classifier Agent — rule-based + ML hybrid → surgical-care taxonomy\n④ Verifier Agent   — cross-check, dedupe, flag low-confidence\n⑤ Reporter Agent   — per-company / per-domain comparison tables\n  ↓\nKB (SQL canonical + FAISS vector + provenance tier: public/private)\n```\n\nEach step = 独立 Python function with typed I/O, idempotent, replayable.", "cites": [] },
+        { "text": "**Stack**: Python 3.10+ / MySQL+Postgres / FAISS+Chroma / Azure OpenAI 内部 endpoint / requests + BeautifulSoup + playwright + pdfplumber / asyncio + bounded semaphore", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**20+ 公司 × 5+ clinical domains**", "cites": [] },
+        { "text": "**~60% 人工评估时间下降**: baseline 30 min/公司 → with agent + verify 12 min/公司; 18 min × 20 × 多轮 ≈ 60% 总省", "cites": [] },
+        { "text": "**~2.5× 端到端 latency 改善**: (a) 替换 N+1 query 为 batched join; (b) 加 composite index (country, surgical_phase, modality); (c) 同步 LLM → asyncio + bounded concurrency; (d) content-hash 缓存 idempotent extractor", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**为什么 custom Python 不用 LangChain**:\n1) **Auditability**: J&J data compliance 要求每个 LLM call/分类决策可日志可归因可复现; LangChain 重抽象隐藏边界\n2) **Deterministic step boundaries**: 5 步独立函数 + typed I/O, 数据科学家可重跑单步\n3) **No framework lock-in**: 6 个月半衰期工具不值得为框架背锁", "cites": [] },
+        { "text": "**为什么没用 RAG**: 输入文档就是源 (Extractor 拿到一个网页/PDF 抽字段), 没有 external corpus 要 retrieve. 但在 output 侧做了向量库 — 产品入库后科学家可语义搜索 \"intra-op bleeding detection\" 之类 query, RAG-flavored 但 retrieve 的是产出 facts.", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "J&J Polyphonic Surgical Intelligence Platform 的 competitive landscape: Theator / Proximie / Medtronic Touch Surgery / Caresyntax 等竞对; 中国市场 (联影/微创/天智航/精锋/术锐) 偏 robot+imaging, surgical video intelligence layer 缺失 = white-space", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Rule-based × ML-driven split** (这是简历亮点, 一定要解释清):\n- **Rule-based**: company name / country / regulatory status (FDA/NMPA/CE) / funding stage / headcount band — schema-hard 字段, auditable, 不烧 LLM 钱\n- **LLM-driven**: capability description / technical claims / surgical-phase mapping / modality classification — natural-language soft fields\n- **Verification layer**: 跨检 LLM 输出 vs retrieval evidence, 低置信度 flag 人工复核", "cites": [] },
+        { "text": "**Provenance tier 设计** (WAIC 信息 + coffee chats 的来源):\n\"许多 smart-surgery 产品 in lab phase 或 IRB-restricted 不在公开源. 我用 WAIC 2025 demo booths + Intuitive Surgical 工程师 informal coffee notes 补 crawler 漏的, 进向量库时单独标 provenance tier (public vs private). 分析师能看哪行来自公开 vs 私下来源. 这就是 clinical AI privacy-versus-coverage tradeoff 的真实形态.\"", "cites": [] }
+      ],
+      "pitfalls": [
+        { "text": "**Clinical AI interview bridge phrases** (面试官追问 healthcare 经验时):\n• \"每个 LLM call 都 log input/output/model version/parameters — J&J compliance 要求, 是任何 clinical agent 的 table stakes\"\n• \"Deterministic step boundaries 是 SAFETY 特性不只是 engineering 偏好 — Classifier 错分一个 device 时, 科学家能精准定位是哪一步哪个输入导致的\"\n• \"我选 custom orchestration 不是因为 framework 不好, 而是 6-month 工具 + regulated domain, hidden abstractions 的代价 > 它的速度收益\"", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "iQIYI - Diffusion Pipeline",
+    "aliases": ["iqiyi", "爱奇艺", "iQIYI 实习", "iqiyi diffusion"],
+    "topic_ids": ["21.1"],
+    "slots": {
+      "definition": [
+        { "text": "**Applied ML Engineer Intern · Feb-Jul 2025 · iQIYI Shanghai Media, Intelligent Platform Dept**\n\nDesigned and productionized agent-driven diffusion image generation pipelines (PyTorch) for IP content production (动漫角色/影视风格); 端到端 latency **↓ 30%**, **15+ 线上稳定性问题** 解决, multi-LoRA adapter 批量推理, **¥10K+ 单周末 incremental revenue**.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**4-layer pipeline**:\n1. **Preprocessing** — prompt engineering / reference image normalization / pose extraction / mask generation\n2. **Model adaptation** — 基于 diffusion checkpoints 做 LoRA fine-tuning (style 不符时)\n3. **Inference serving** (我主要负责) — GPU memory profiling / batch scheduling / mixed precision / 中间 feature caching\n4. **Post-processing** — super-resolution / artifact removal / 产品化接口封装", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**Latency ↓ 30% 怎么做的** (4 件事):\n\n**(1) GPU profiling** 定位瓶颈:\n  - UNet inference (主)\n  - VAE decoding\n  - Host-to-device copy\n\n**(2) Mixed precision (FP16)**:\n  - GPU memory ↓ ~40%\n  - kernel execution 更快\n\n**(3) Dynamic batching**:\n  - 原 batch=32: queue waiting + OOM risk + tail latency 高\n  - 改 dynamic batch 8-16: P95 latency 显著下降\n\n**(4) Cache** 减重复计算 (style embedding 等)", "cites": [] },
+        { "text": "**3+ 商业项目采用, 1 个单周末 ¥10K+ incremental revenue**\n**字幕翻译一致性 +25%, legacy 影视 PSNR/SSIM +15-20%**", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**Batch 大小选择** (面试经典):\n- 静态大 batch (32): throughput 高但 OOM + tail latency 不稳\n- 动态 batch (8-16): 平衡 throughput / latency / 显存; 不同请求复杂度异质时尤其重要", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**FP16 精度问题** (高频题):\n\n3 类风险:\n1. **Overflow**: FP16 max ~65504, 某些 activation 会 overflow\n2. **Underflow**: 小梯度可能直接变 0 (训练时致命, 推理时影响小)\n3. **Accumulation error**: 长链计算误差累积\n\n处理:\n- **敏感 layer 保留 FP32**: normalization / softmax / reduction ops\n- 关键 metric 监控: cosine similarity / mAP / FID, 确保精度在可接受范围\n- BF16 替代 FP16 (range = FP32, A100/H100 原生支持)\n- 大模型推理常用 INT8/FP8 量化进一步压缩", "cites": [] },
+        { "text": "**LoRA 多 adapter 管理** (style 切换):\n- 训练时: 不同 style/IP 各训一份 LoRA (r=8-32, α=16), share base checkpoint\n- 部署时: 推理服务 load base + N 个 adapter, 请求带 style_id 动态选 adapter\n- 优势: 单 GPU 装下几十个 style (LoRA 几 MB), 无需 N 份 base; 切换 0 延迟\n- 替代: 把 LoRA merge 回 base 做独立模型, 但失去多 style 灵活性", "cites": [] }
+      ],
+      "pitfalls": [
+        { "text": "**15+ 线上问题分类**:\n- OOM (大 batch + 大分辨率)\n- batch queue blocking (静态 batch 凑不齐)\n- style inconsistency (LoRA 加载顺序错)\n- GPU memory leak (PyTorch tensor 没释放)\n- model 加载 race condition (并发 reload)", "cites": [] }
+      ],
+      "code": [
+        { "text": "# Dynamic batching pseudocode (简化版)\nwait_time = 50  # ms\nmin_batch, max_batch = 8, 16\n\nwhile True:\n    batch = []\n    deadline = time.time() + wait_time / 1000\n    while len(batch) < max_batch and time.time() < deadline:\n        try:\n            req = queue.get(timeout=deadline - time.time())\n            batch.append(req)\n        except Empty:\n            break\n    if len(batch) >= min_batch or batch:\n        results = model.batched_inference(batch)  # FP16 + cached features\n        for req, result in zip(batch, results):\n            req.callback(result)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "SJTU Network Center - LLM Platform",
+    "aliases": ["sjtu", "上海交大", "交大网络信息中心", "campus AI SaaS"],
+    "topic_ids": ["21.1"],
+    "slots": {
+      "definition": [
+        { "text": "**Full-stack Developer · Jun-Aug 2024 · SJTU Network & Information Center**\n\nBuilt campus-scale ML service platform with Django APIs serving **40K users + 5K+ model-driven interactions**, LLaMA2 + PEFT/LoRA + RAG (**+22% benchmark**), async inference (**+20% throughput**), **99.9% availability**.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**3-layer 架构**:\n1. **前端 (React)** — prompt 输入 + 生成结果展示\n2. **后端 API (Django)** — 请求处理 / 任务调度 / 权限控制\n3. **模型服务层** — Llama2 推理 (RAG 检索校园知识库 → LLM 生成)\n\n**异步架构 (面试官最爱问)**:\n- Uvicorn (ASGI worker) + Gunicorn (process manager)\n- LLM 推理任务用 Celery + Redis 异步队列\n- 长任务 (>5s 推理) 立刻返回 task_id, 客户端 poll 或 SSE 推送结果", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**40K 用户 / 5K+ 交互**\n**+22% 内部 benchmark**\n**+20% throughput** (vs 同步基线)\n**99.9% 可用性** (峰值)", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**为什么 Uvicorn + Gunicorn**:\n- Gunicorn 单独无 async 能力, 适合同步 Django\n- Uvicorn 是 ASGI server, 支持 async/await, 适合 LLM 推理 (I/O 密集长任务)\n- Gunicorn 作为 process manager 启动 N 个 Uvicorn worker, 兼得 process 隔离 + async 并发\n- 等价方案: FastAPI 内置 uvicorn workers / Hypercorn (HTTP/2 支持)", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "校园 AI SaaS: 文本生成 / 问答 / 学术翻译 / 课程辅助; 多角色权限 (学生/教师/管理员)", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**LoRA fine-tune 细节** (面试问到):\n- 数据: 校园 FAQ + 学术问答 ~10K 对\n- LoRA r=8, α=16, lr=1e-4, 训 3 epoch\n- Base model: LLaMA2-7B-chat (中文需先 SFT 校园语料)\n- Eval: 内部 benchmark 22% 提升 (vs 原 base zero-shot)\n- RAG 配合: 用户 query → embedding → 检索校园文档 top-3 → 拼 context 喂 LLaMA2 → 生成答案", "cites": [] },
+        { "text": "**99.9% 可用性怎么保**:\n- 多 worker 进程 + load balancer (Nginx upstream)\n- 模型服务 hot-standby (2 个 GPU 副本, 主挂自动切)\n- 推理超时 → 兜底返回 \"请稍后再试\" + log 报警\n- 灰度发布: 新模型先放 1% 流量, AB test 通过再 100%\n- 监控: Prometheus + Grafana 关键指标 (QPS/latency/error rate/GPU util)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Arklex × Walmart - GED Chatbot Eval",
+    "aliases": ["walmart", "Arklex", "GED chatbot", "agent eval", "Walmart GED"],
+    "topic_ids": ["21.1", "18.6"],
+    "slots": {
+      "definition": [
+        { "text": "**Research Intern @ Arklex AI Lab (Zhou Yu lab) · Mar 2026-present**\n\nPR #865 `arklexai/chatbots#865` — 给 arksim-pro (会话 AI 评估工具) 加 3 个新命令, 把真实对话日志变成 grounded simulation scenarios, 自动 mine attributes + 生成 scenario + 模拟对话 + 评估 agent. 当 ground-truth 来自 Walmart GED Testing Service 真实 50 段对话.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**5-stage pipeline** (PR #865 新加):\n\n1. **discover-attributes** (5.4s, no API key) — TF-IDF + k-means + intent + spaCy verb-noun + NER + LLM grouping, 从对话 mine top-20 attributes (goal / user_context / knowledge_topic / dialogue_pattern)\n2. **apply-discovery** (0.4s) — merge 进 scenario builder config (不改原 file, 写 3 个新 file)\n3. **build** (335s, gpt-4.1) — 生成 user goals → sample user attribute → Big Five Pydantic UserProfile → 配 knowledge → 输出 Scenario records\n4. **simulate-evaluate** (397s, gpt-4.1-mini) — 多轮对话 (user simulator vs agent under test), built-in 指标评估\n5. **compare-errors** (58s, gpt-4o-mini judge) — 真实失败 vs 模拟失败 LLM match, coverage rate", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**50 段 GED 对话 / 168 user turns / 71 failure-like / 61 success-like**\n**Stage 1: 100 raw candidates → 75 dedup → top-20 (14 knowledge / 4 context / 2 goal)**\n**Stage 3: 60 scenarios, 428 KB, gpt-4.1, 命中多次 30K TPM rate limit (内置 exponential backoff 全消化)**\n**Stage 4: 17/60 完成 (200K TPM 撞限), mean agent score 0.907, goal completion 1.0**\n**Stage 5: 3 matches / 39 missing = 7.1% coverage**", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**7.1% coverage 不是 bug, 是发现** (这是面试核心讲点):\n\n39 missing 失败按类型:\n- 16 高严重度 = disobey user request (production bot 把用户重定向到网站)\n- 16 中严重度 = failure to ask for clarification (production bot 问不相关的)\n- 4 lack of specific info\n- 3 repetition\n\n**洞察**: 16+16+3 = 35/39 是 **orchestration policies inside production agent**, 不是 knowledge gap. 替代 agent (我用 BaseAgent + FAISS + 2 个 tool) by-construction 不会有这些 (没 deflection policy, 不丢 state, 不重复). \n\n剩 4 个 lack-of-info **能** match — 这正是 substitute agent retrieval 能覆盖的部分.\n\n**结论**: PR 的 discovery pipeline 正确抽出了两类失败 (orchestration + knowledge), substitute agent 不能复现 orchestration 失败是结构性的 (不是 budget 问题). 要复现 production failures, 要么用 production agent, 要么写个 explicit mimic agent.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Failure-likeness label 演进** (面试可讲):\n初版: rated 1-2 OR feedback negative OR 长度 outlier (overall percentile)\n改进发现: helpful 对话长度分布 ≠ failure 对话, 用 overall percentile 把 helpful 的也标成 failure → 误标率高\n改后: 只用 'rated_negative' or 'feedback_negative', 不用长度\n或: 改用 high-rated conversation length percentile 做长度阈值\n下一步: re-calculate actual_rating_band → 跟 predicted_band 算 P/R/F1/accuracy", "cites": [] },
+        { "text": "**ranking algorithm 改进** (面试 PR 细节):\n- selection_score / priority_score 权重经验调参导致 'thank' 被排前 (因 frequency 高且 success 也用)\n- 关键修复: **success_lift 应该从 score 函数减去, 不是加上** (success 词反而该 deprioritize, 不然失败诊断信号弱)\n- 后续: 把 keyword grouping 升级到 NER + categorical attribute, 减少同义词分散", "cites": [] }
+      ],
+      "pitfalls": [
+        { "text": "**Substitute agent 限制** (诚实承认):\n用 `arksim/examples/customer-service/custom_agent.py` BaseAgent template, 两个 tool (FAISS retrieve over 22 GED FAQ + escalate_to_human). 不是 production GED bot.\n\nProduction bot 在 `presalebot` package, bot_id=\"ged\", v1alpha1, 需要 MySQL bot_settings 行 + Milvus knowledge collection + Redis + Celery. 这些 dependencies 我没有, 所以做了 substitute.\n\n复现 production: 拿 staging bearer token POST 到 `/api/qa/text/ged/v1alpha1` 即可 (但需 Arklex 团队授权).", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "An-Agent (微信多 Agent 助手)",
+    "aliases": ["An-agent", "anagent", "微信 agent", "WeChat agent"],
+    "topic_ids": ["21.2", "18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Autonomous AI agent system · Personal project · 2025-present**\n\n24/7 跑在 Mac Mini, 通过微信 (wechat-mcp 桥接) 作为 owner 个人助手 + 自动回复其他联系人. 基于 Claude Code SDK, 多 agent 架构 + 5 层生物启发记忆系统 + 自改进闭环 + 28 个 regex 安全防护.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Multi-Agent System**:\n- **Butler** (Opus): 给 owner 的私人助手, 全权限, 可发文件/改代码\n- **Digital Twin** (Sonnet): 给其他联系人代回, **read-only**, 3 层 + sandwich 注入防御\n- **Expert agents**: research / writing / startup / finance / music / academic / hardware (各自 CLAUDE.md)\n\n**5-layer Memory (MemGPT/Letta-inspired)**:\n- L0 Procedural — JSON KV (system procedures)\n- L1 Working — per-agent deque (maxlen=20)\n- L2 Episodic — SQLite + FTS5 + rolling summary + admission gate\n- L3 Semantic — ChromaDB per-agent namespace + vector dedup\n- L4 Persona — Big Five + values + comm style (reflection engine 更新)\n\n**Sleep Cycle (神经科学启发, daily 5:10 AM)**:\nNREM (GC + LLM score + dedup) → REM-light (cross-agent assoc) → REM-deep (dream gen: replay → fantasy → shuffle → narrative) → Replay → Dream report 通过微信发给 owner", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**Skill registry**: 8 内置 skill (regex fast-path, 0ms latency): system_status / uptime / memory_stats / datetime / calculator / recent_emotion / tasks_query / help\n\n**Safety**: 28 regex pattern 注入防御 (zero-width / Unicode NFKC / leet speak / structure anomaly / output leakage), 4 类 circuit breaker, 8 个 Claude Code hooks shell-level 强制 (LLM 绕不过)", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**为什么 Butler 用 Opus, Twin 用 Sonnet**:\n- Butler 复杂推理 + 改代码 + 决策, 要 Opus 智商\n- Twin 只回复 + read-only, Sonnet 性价比高, 多回复成本低\n- 切换由 model_selector 根据 agent 类型决定, 不是固定", "cites": [] },
+        { "text": "**Memory 设计 vs Mem0 / MemGPT**:\n- Mem0: 两阶段 fact extractor (我借鉴了, fact_extractor.py)\n- MemGPT/Letta: archival vs working 二分; 我细到 L0-L4 五层\n- 独创: Emotion State (Haiku 提情绪跨 session 跟踪), Sleep Cycle (NREM/REM 模拟)", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Prompt Injection 防御 (Twin only)** — 28 个 regex pattern, 不调 LLM:\n- zero-width 字符 strip\n- Unicode NFKC normalization\n- leet speak conversion (h3ll0 → hello)\n- structure anomaly detection (大段 JSON / Markdown 在自然语言里)\n- output leakage check (输出含 system prompt 片段)\n- sandwich defense: user message 包在 [INPUT_START] / [INPUT_END] 之间\n零 LLM 调用, 纯 regex, 防御推理时延 < 1ms", "cites": [] },
+        { "text": "**自改进闭环 (Daily Self-Improve, 5:00 AM launchd)**:\n6 stage SAGE-inspired:\n1. 搜最新研究 (web search)\n2. Self-reflect (LLM-as-Judge 评昨日表现)\n3. Health check\n4. Code audit (VIGIL RBT)\n5. Deep reflection\n6. Improvement suggestions (写入 butler 待办)", "cites": [] }
+      ],
+      "pitfalls": [
+        { "text": "**为什么本地跑而非云**:\n- 微信账号 cookie 必须本地 (云上跑会异地登录被踢)\n- 隐私: 个人对话不愿过云\n- Mac Mini 24/7 in-home, ~$5/月电费\n- caffeinate 防睡眠, PID lock 防多实例\n- 单点故障接受: 个人项目不要求 5 个 9", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "RCRI - 攀岩 YOLO Jetson",
+    "aliases": ["RCRI", "rock climbing", "攀岩", "Jetson Nano", "YOLOv8 climbing"],
+    "topic_ids": ["21.2", "15.2", "20.5"],
+    "slots": {
+      "definition": [
+        { "text": "**EECS E6792 Deep Learning on the Edge · Columbia · 2026 Spring**\n\n实时攀岩路线识别 + 难度估计, 跑在 Jetson Nano 2GB @ 5W. 输入: 墙面图像/USB 摄像头 live 流. 输出: 每个 hold 的 bbox + grip type (Crimp/Jug/Pinch/Pocket/Sloper/Volume) + 颜色路线归属 + V-grade 难度评分.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**3 个 YOLOv8 detector 并行**:\n- Stage 1: hold detector (单类)\n- Stage 2: 5-6 类 type detector\n- Stage 3: volume detector\n\n用 **IoU-matched cross-stage merge + NMS** 协调三路结果. **scale-invariant difficulty score** (6 个无量纲 ratio) 映射到 V-grade.\n\n**部署链**: PyTorch (.pt) → ONNX → TensorRT (.engine) on Jetson", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "| 指标 | 值 |\n|---|---|\n| Hold detector mAP@50 | **0.825** (YOLOv8 s, 5341 张 dataset) |\n| 6-class merged pipeline mAP@50 | **0.71** |\n| Jetson Nano live FPS (Stage 1 only) | **12 fps** |\n| Jetson Nano live FPS (full 6-class merged) | **5 fps** |\n| Power envelope | **< 5W** |\n| Total code | **~9800 LOC** Python |", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**3-stage parallel vs 单 YOLO 多类**:\n- 单模型: 类别共享 backbone 节省算力, 但小类 (Volume 少) 容易被 dominate\n- 3-stage: 每类独立优化数据 + 阈值, 召回更稳; 代价是 3× 算力, Jetson 上靠 TensorRT INT8 救\n\n**为什么 IoU-match 合并而非 NMS**:\n- NMS 同类去重适合; 跨 stage 不同类不能 NMS\n- IoU match + 阈值: 同 IoU 区域多 stage 输出 → 投票 / 优先级合并", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "Beta recommender (A* 算最优攀岩路径) + route visualizer (画箭头 + per-route 卡片 + BGR 颜色分配) + difficulty estimator (6 sub-score 综合)", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**TensorRT 加速 4 件事**:\n1. **FP16 / INT8 量化**: FP32 → FP16 ~2× 提速, INT8 + 校准集再 2×\n2. **Layer fusion**: conv + bn + relu 合一个 kernel, 减 HBM 来回\n3. **Kernel auto-tuning**: TensorRT 跑 benchmark 选当前 GPU 上最快 kernel\n4. **Dynamic shape support**: 不同输入 size 用同一 engine, 不用每次重 build\n\nJetson Nano 2GB 显存有限, 必须 FP16 + workspace_size 调小 (~128MB)", "cites": [] },
+        { "text": "**Edge 部署面试题**:\n- ONNX export 时要 fixed input shape 还是 dynamic? — 实时 detection 用 dynamic\n- TensorRT engine 跨 GPU 兼容吗? — 不兼容, 必须 target device 上 build\n- Jetson 上 PyTorch 直接跑慢的原因 — 没 TensorRT 优化, CUDA kernel 调度开销大\n- 怎么测 latency 真实 — 用 cudaEventRecord 不是 time.time(), 因 GPU async", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "VT-Refine-Lang (NL→Robot)",
+    "aliases": ["VT-Refine", "vt refine", "ALOHA", "CoRL 2025", "robot insertion"],
+    "topic_ids": ["21.2", "15.4"],
+    "slots": {
+      "definition": [
+        { "text": "**NL-driven fine-grained robotic insertion · fork of VT-Refine (NVlabs, CoRL 2025)**\n\n自由形式英语命令 → 螺母插入到 3 个离散深度之一 (25% / 50% / 75%), policy hold 在那里. Built for ALOHA bimanual platform + 00581 nut-and-bolt asset.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**两个 contribution 加在 upstream VT-Refine 上**:\n\n1. **`router/` — 4-tier router**, 把 free-form NL (含 typo / idiom) 映射到离散 depth target:\n   - Tier 1: numeric / exact-phrase ('25%', 'halfway')\n   - Tier 2: regex anchors + fuzzy correction (拼写错的)\n   - Tier 3: SBERT zero-shot (语义)\n   - Tier 4: `fallback_unparsed` 标签兜底返回 0.5 (不静默)\n   Symbolic-first 设计, embedding 是 backstop\n\n2. **z-only progress stop agent**:\n   `progress_z = (shaft_top - aperture_bot) / (shaft_top - shaft_base)`\n   gated by lateral admit + lift gate, 首次 progress_z >= target 触发 hold. 不依赖 quaternion 或 mesh rotation.", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**Router 准确率**: 372/372 in-distribution test 全过 (含 typo `litlle bitt`)\n**5 demo end-to-end**: 'insert 25%' / 'insert a little bit' / 'insert a litlle bitt' (双 typo) / 'halfway' / 'most of the way' 全部正确路由", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**为什么 symbolic-first + embedding 兜底**:\n- 工业 robot 不能纯 LLM 决策 (黑箱 + latency + 失败不可控)\n- Symbolic 路由 deterministic + 可审计 + 低延迟; embedding 处理长尾\n- Fallback 不静默 (返 0.5 + tag), 上层能监控 / 重试 / 人工介入\n- 这就是 'AI for safety-critical systems' 的标准范式 (跟 J&J 的 clinical AI 同款思路)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "AI Code Review System",
+    "aliases": ["code review system", "code review tool", "AI 代码审查"],
+    "topic_ids": ["21.3"],
+    "slots": {
+      "definition": [
+        { "text": "**Self-built AI-augmented multi-language code-review tool · May 2026 · 端到端独立开发**\n\nPython + JS scanner + rule engine + AST parser + Flask web UI + CI workflow. **29+ 内置 rule** 跨 security/performance/quality/style/best-practice/framework, 输出 HTML/JSON/Markdown 报告, CI/CD 直接集成.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**4-layer 架构**:\n```\nCLI 层 (scan/report/ai-analyze/server)\n   ↓\nCore Orchestration (Scanner / ReportGenerator / ConfigLoader)\n   ↓\n┌─ RuleEngine (6 类 29+ rule) ─┬─ LangParser (Python/JS AST) ─┬─ AIAnalyzer (mock/pluggable)\n   ↓\nStorage/Output (AST cache + config cache + report render)\n```", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**29+ 内置 rule / 14 detection 类别 / 2 语言 (Python+JS) / 3 输出格式 / 45 tests 全过 / Parallel scanning via ThreadPoolExecutor**", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**Plugin-based rule 系统设计**: 每 rule = 实现 `def run(ast, ctx) -> list[Finding]` 接口的类, drop into `engine/rules/*.py` 自动注册. 加新 rule = 一个文件零修改其他组件.\n\n**AI analyzer 设计为接口 (不绑 LLM)**: ships with deterministic mock (单元测试不需 API), 要接 OpenAI / CodeLlama 实现 `OpenAIAnalyzer` 类即可, scanner 不动.\n\n**AST caching**: dict keyed by `file_path + mtime`, 多 rule 扫同文件只解析一次.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**亮点 / 面试讲点**:\n- **Design before implementation**: DESIGN.md (18KB) 先写, 再实现. 不是研究 throwaway, 是 \"colleague would feel safe extending\"\n- **Mock interface 是设计精华**: 大多 code review tool 绑死 LLM API, 这个延迟选择\n- **45 test 信号**: 30+ unit + e2e, all green in CI, 不是 demo 级代码\n- **ThreadPoolExecutor 不用 asyncio**: AST 解析 CPU/IO 混合, 线程更直接 (GIL 在 AST C 实现里会释放)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "UAES OTA - 差分升级",
+    "aliases": ["UAES", "OTA", "差分升级", "Linux 差分", "Differential Upgrade"],
+    "topic_ids": ["21.2", "2.4"],
+    "slots": {
+      "definition": [
+        { "text": "**SJTU-UMich JI Capstone · DR3 Final · 2024-2025**\n\nLed 5-member team, 给 UAES (汽车 ECU 供应商) 做 Linux 文件系统 OTA 差分升级方案. 把传统 full-image OTA 改成 file-level differential update, **patch size ↓ 60%+, 升级时间 ↓ 70%+**. UAES 已采用并复用.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Server side (Python)**:\n1. Old vs new version 做 file-level comparison\n2. 按文件类型选差分算法:\n   - 普通 binary → **bsdiff**\n   - large files → **xdelta3**\n   - filesystem images → **imgdiff**\n3. 生成 patch package + manifest (add/delete/modify/permission/checksum)\n\n**Client side (C)**: installer\n1. Parse manifest\n2. Apply patches\n3. Restore permissions\n4. **MD5 verification**\n5. **Rollback if failed**", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**Patch size 减少 60%+, 升级时间减 70%+**\n5 人团队, 我负责: patch generation / manifest design / 车端 installer / rollback / integrity verification", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**bsdiff vs xdelta vs imgdiff**:\n- **bsdiff**: 适合普通 binary, patch 小压缩好, 但生成/应用都慢\n- **xdelta**: 速度比 bsdiff 快, patch 大小没那么极致, 平衡型工程首选\n- **imgdiff**: 专门给压缩过的系统镜像 (Android OTA 类), 对镜像内部结构友好", "cites": [] },
+        { "text": "**Server Python / Client C 划分**:\n- Server: 文件处理 / JSON manifest / 调工具方便 → Python\n- Client (车机): 资源紧 / 启动快 / 系统调用直接 → C\n- 边界清晰: manifest 是 contract, 跨语言用 JSON 序列化", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**MD5 校验流程** (面试要顺):\n生成 patch 时: 对新版本文件算 MD5, 写入 manifest (path / op_type / permission / hash)\n安装时: patch 完某文件 → 重新算 MD5 → 跟 manifest 对比 → 一致 = 正确, 不一致 = rollback\n\n升级版: SHA-256 (MD5 已不抗碰撞), 或 HMAC 防篡改\n\n**车端怎么知道有新版本**:\n车端定期 OTA daemon → server 上报 (VIN + current version + device status) → server 返回 (target version + package URL + checksum) → 车端 download → verify → install → report result", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "LuxRent Microservices",
+    "aliases": ["luxrent", "奢侈品租赁", "microservices"],
+    "topic_ids": ["21.2", "6.2"],
+    "slots": {
+      "definition": [
+        { "text": "**Multi-repo microservices platform · 奢侈品租赁**\n\nGitHub org `elegante-libero-hub-luxrent-platform`, 多 service: catalog/inventory + order/rental + composite + DB schema + web UI. 用 FastAPI + MySQL + MongoDB + ECS/ECR + CI/CD.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Catalog & Inventory Service (MS2)**:\n- FastAPI + mysql-connector + Pydantic models\n- Models: Item / PhysicalItem / Availability / Reservation\n- Pubsub event publishing (pubsub_client) for inventory changes\n- Cursor-based pagination (base64-encoded last_id token)\n- CORS 处理: 没用 cookies 所以 allow_credentials=False (避开 wildcard origin 限制)", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**MySQL vs MongoDB 混用** (Q&A 高频):\n- MySQL: 强 schema 结构化数据 (item / order / reservation), 跨 service join 需求弱\n- MongoDB: 半结构 attrs (photos JSON / 自定义 attrs JSON), 不同品牌 attrs 字段不一样\n- 实际: 主数据 MySQL, schemaless 字段嵌 MySQL JSON column 或外挂 Mongo\n\n**ECS + ECR 部署**:\n- ECR (Elastic Container Registry) 存 docker image\n- ECS (Elastic Container Service) 跑容器, Fargate launch type 无需管 EC2\n- ALB (Application Load Balancer) 路由不同 service\n- CI/CD: GitHub Actions push → ECR → ECS service update → rolling deploy", "cites": [] },
+        { "text": "**一致性问题** (微服务难题):\n- catalog_service 更新库存, order_service 同时锁库存 → race condition\n- 解法: 2PC (重) / Saga 模式 (补偿事务) / 最终一致 + 事件驱动\n- 实际: 用 Redis 分布式锁短锁, 跨服务用消息队列 + idempotent handler", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Pinyin Communication Badge (ASD)",
+    "aliases": ["pinyin badge", "拼音键盘", "ASD children", "AAC"],
+    "topic_ids": ["21.2"],
+    "slots": {
+      "definition": [
+        { "text": "**Capstone · ASD 儿童辅助沟通系统**\n\n自定义键盘输入拼音 → 声调/拼音标准化 → LLM 拼音纠错 + 汉字建议 → 图片 / 语音多模态反馈 → Raspberry Pi + 屏幕 + 键盘 + 音箱集成. 低成本 (<¥1000) 便携硬件软件一体设备.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**4-layer Tkinter 架构**:\n1. 键盘映射 (typing_ui.py line 53) — 特殊键盘 → 声母韵母 + 声调\n2. 拼音标准化 (typing_ui.py line 22) — 数字声调 → 标准拼音展示\n3. 拼音纠错 + 汉字建议 (hanzi.py line 11) — 调结构化 LLM 接口\n4. 多模态反馈 — 文生图 (test.py line 12) + TTS (audio.py line 25)\n\n图片生成放后台线程, 不阻塞输入链路; 全键盘可操作纠错确认弹窗.", "cites": [] }
+      ],
+      "complexity": [
+        { "text": "**键盘输入准确率 100% / 纠错成功率 80-90% / 文本反馈 < 200ms / 图片平均 7s / 硬件成本 < ¥1000**", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "ASD 儿童 AAC (Augmentative and Alternative Communication) — 传统拼音键盘只能发声没屏幕/纠错; iPad 贵+易碎+干扰多. 这个填中间空白.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**怎么关联 B 站推荐算法** (面试转推荐岗时):\n\"用户输入 = request, 拼音/历史/快捷短语 = context, 可能汉字短语 = candidates, 纠错置信度/儿童词汇难度/历史使用频次 = ranking features, 最终输出语音+图片. 这跟推荐召回/排序/重排很像. B 站推荐多路召回 → 粗排 → 精排 → 重排; 我项目规模小, 但训练了把算法/延迟/用户体验/降级策略一起考虑.\"", "cites": [] },
+        { "text": "**高频追问**:\n- **算法含量?** \"主要是输入纠错+候选选择. 设计阶段考虑过 noisy channel / 编辑距离 / Trie 做候选; 最终 demo 用 LLM 结构化输出 (开放词汇 + 开发效率). 工业化我会改成 Trie + 编辑距离召回 + 轻量排序模型, LLM 只做离线标注或兜底.\"\n- **图片生成慢怎么解?** \"常用短语预生成 + 缓存; 在线只生成长尾; timeout + 失败降级到汉字 + TTS; 异步不阻塞主链路.\"\n- **B 站推荐为什么不能只优化 CTR?** \"只 CTR 易推标题党. 要综合点击+播放时长+完播+点赞投币收藏评论+关注+负反馈+留存+多样性+创作者生态, 多目标优化.\"", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Stockbee / gstack",
+    "aliases": ["stockbee", "gstack", "finance quant"],
+    "topic_ids": ["21.2"],
+    "slots": {
+      "definition": [
+        { "text": "**Personal project — finance/quant + agent tooling**\n\n包含 gstack (类 Claude Code 的 agent 编排工具集), 多 skill: /office-hours, /plan-ceo-review, /review, /qa 等; 把 LLM 当 virtual engineering team (CEO/eng manager/designer/reviewer/QA/security/release engineer).", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**gstack 设计**: SKILL.md 标准 slash commands, Markdown 化角色定义, 在 `.claude/skills/` 或 `.agents/skills/` 自动 discovered. Hooks 做 shell-level safety (careful / freeze / guard).", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**面试讲 angle**: Tooling-driven personal productivity — Karpathy 'I haven't typed code since December' 类的 agentic dev workflow 实践. 接 finance quant 时强调 portfolio insights generator 是 sibling project.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Portfolio Insights Generator",
+    "aliases": ["portfolio insights", "投资组合分析"],
+    "topic_ids": ["21.2"],
+    "slots": {
+      "definition": [
+        { "text": "**Personal finance/quant project**\n\n投资组合分析工具, LLM 生成 insights. 详见 `~/Desktop/project_kb_export/portfolio_insights_generator.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Yellow Room MVP",
+    "aliases": ["yellow room", "case study journalism"],
+    "topic_ids": ["21.2"],
+    "slots": {
+      "definition": [
+        { "text": "**Case-study journalism MVP**\n\n详见 `~/Desktop/project_kb_export/yellow_room_mvp.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "FitMaster",
+    "aliases": ["fitmaster", "健身 app"],
+    "topic_ids": ["21.4"],
+    "slots": {
+      "definition": [
+        { "text": "**学习项目 — 健身 app (mobile)**\n\n详见 `~/Desktop/project_kb_export/fitmaster.md`. 主要用于 mobile / 个人 app 类 JD.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "HabitLedger",
+    "aliases": ["habit ledger", "习惯追踪"],
+    "topic_ids": ["21.4"],
+    "slots": {
+      "definition": [
+        { "text": "**学习项目 — 习惯追踪 app**\n\n详见 `~/Desktop/project_kb_export/habitledger.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "DeStudy",
+    "aliases": ["destudy", "学习 app"],
+    "topic_ids": ["21.4"],
+    "slots": {
+      "definition": [
+        { "text": "**学习项目 — 学习辅助 app**\n\n详见 `~/Desktop/project_kb_export/destudy.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Fan Timeline",
+    "aliases": ["fan timeline", "时间轴 UI"],
+    "topic_ids": ["21.4"],
+    "slots": {
+      "definition": [
+        { "text": "**学习项目 — 时间轴 UI 组件**\n\n详见 `~/Desktop/project_kb_export/fan_timeline.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "LockService",
+    "aliases": ["lockservice", "分布式锁 demo"],
+    "topic_ids": ["21.4", "4.5"],
+    "slots": {
+      "definition": [
+        { "text": "**学习项目 — 分布式锁 demo**\n\n详见 `~/Desktop/project_kb_export/lockservice.md`.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Amazon LP STAR 答案池",
+    "aliases": ["amazon LP", "STAR template", "behavioral", "行为面"],
+    "topic_ids": ["21.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Behavioral 面试 STAR 答案池**\n\nAmazon Leadership Principles (LP) + STAR (Situation / Task / Action / Result / Learning) 框架. 项目锚定: iQIYI 图像生成 (大多 story) + SJTU 校园平台 (Llama2+LoRA, 40K users) + J&J Medical (其他公司行为面也适用).\n\n源: `~/Downloads/amazon sde.docx` (2026-05-28).", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**LP coverage** (Amazon 最常考):\n- Customer Obsession\n- Ownership\n- Dive Deep\n- Bias for Action\n- Earn Trust\n- Learn and Be Curious\n+ ad-hoc 其他", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "**自我介绍模板** (适用所有公司 SDE 实习):\n\"Hi, I'm Yijing Jia, master's student in Computer Engineering at Columbia, expecting to graduate Dec 2026.\n\nI have experience building production-level systems across backend, AI, and distributed services. Recently I worked on an image generation pipeline at iQIYI where I improved system performance and supported real content production.\n\nI'm particularly interested in building scalable and reliable systems, and I enjoy solving problems that have real user impact.\n\nI really admire [Amazon]'s customer-centric culture and focus on innovation. I'm eager to learn, take ownership, and contribute as an SDE intern.\"", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Bias for Action 模板 — iQIYI 紧急 IP 内容交付**:\n\n**S**: 内容项目要批量生成 trending 节目相关视觉素材\n**Constraint**: pipeline 太慢 + 2 周 deadline + 没时间 full benchmark + 节目热度时间窗紧\n**T**: 按时交付 + 可接受质量 + 不确定下快速决策\n**A**:\n1. Fast problem ID: 用之前经验定位 likely bottleneck, focus 高 impact, 不做 full analysis\n2. Practical trade-off: 降图片分辨率 + 降 inference steps + 移除 non-critical style enhance\n3. (核心) Cut compute-heavy 但 low-impact 组件\n4. 并行: parallel batch + 多 GPU\n**R**: 按时交付 + ¥10K+ 单周末 incremental revenue + 学到 \"做出能用决策\" > \"做出完美决策\"\n**L**: Bias for Action 不是 reckless, 是 informed bet on right priorities", "cites": [] }
+      ],
+      "pitfalls": [
+        { "text": "面试用 STAR 时:\n- **S 短** (10 秒说清)\n- **T 明确** (你 vs 团队负责啥)\n- **A 详细 40 秒** (具体动作 + trade-off + 数字)\n- **R 量化** (% / $ / 时间 / 用户数)\n- **L 真诚** (反思 + 下次会怎么做)\n\n**面试官追问**:\n- \"如果再来一次你会怎么做?\" → 准备 1 个真诚的改进点\n- \"团队反对你怎么办?\" → 描述沟通过程, 不是 'I won them over' 而是 'I aligned with them'\n- \"失败的项目讲一个\" → 必须准备 1-2 个真失败 + 学到的", "cites": [] }
+      ]
+    }
+  }
+]
