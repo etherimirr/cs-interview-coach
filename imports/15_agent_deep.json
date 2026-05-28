@@ -1,0 +1,360 @@
+[
+  {
+    "title": "Workflow vs Agent",
+    "aliases": ["workflow agent 区分", "agent definition"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Anthropic 定义**: \"If the LLM can change your application's control flow, it's an **agent**. If the flow is fixed by your code, it's not.\"\n\n- **Workflow**: LLM + tool 按**预定义代码路径**编排. 流程固定可测.\n- **Agent**: LLM **动态决定**自己的过程和工具用法, 控制如何完成任务.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "blog"}] }
+      ],
+      "comparison": [
+        { "text": "| | Workflow | Agent |\n|--|--|--|\n| Control flow | 固定, 预先定义 | 动态, LLM 自主决策 |\n| 决策 | 规则驱动 | LLM 推理驱动 |\n| 复杂度 | 低 (chaining/routing) | 中-高 |\n| 人工介入 | 可选 | 关键节点常需 |\n| 任务类型 | 可预测序列 | 复杂不确定 |\n| 调试 | 容易 (路径固定) | 难 (轨迹多变) |\n| 成本 | 低 | 高 (动态规划多 LLM 调用) |", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**口诀**: 能用 workflow 不用 agent. Agent 强大但不可预测、贵、难评估. Workflow 简单可控. Anthropic 反复强调 \"start simple, escalate only when needed\".", "cites": [{"source_id": "anthropic-effective-agents", "locator": "blog"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Augmented LLM",
+    "aliases": ["agent building block", "augmented LLM"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**所有 agent 系统的最小 building block**: LLM + 3 个 augmentation:\n1. **Retrieval** (外部知识)\n2. **Tools** (调外部 API / 函数)\n3. **Memory** (跨对话状态)\n\nLLM 主动决定何时 retrieve / 调哪个 tool / 写读什么 memory.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "blog Section 'Augmented LLM'"}] }
+      ],
+      "interview_points": [
+        { "text": "**关键设计**: 让 LLM 看到 augmentation 的 interface 文档 + 自己生成调用. 不是写死规则.\n**实战 stack**: Claude function calling / OpenAI tools / MCP server", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Prompt Chaining",
+    "aliases": ["prompt chain", "顺序链"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "把复杂任务拆成**顺序步骤**, 每一步基于前一步结果. 各步之间可加 gate (验证后才进入下一步).", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Prompt Chaining"}] }
+      ],
+      "use_cases": [
+        { "text": "**适合**: 序列性多步任务, 各步可独立验证, 准确率比延迟重要.\n**例子**:\n- 合同分析: 抽条款 → 检查合规 → 生成总结\n- 写邮件: 草拟 outline → 改写 → polish\n- 翻译 + 校对: 翻译 → 反向翻译对比", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Prompt Chaining"}] }
+      ],
+      "comparison": [
+        { "text": "vs 单一 mega-prompt: 链式每步专注一件事, 上下文短, 准确率高, 易调试; 代价是延迟累加.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Agent Routing",
+    "aliases": ["LLM routing", "路由模式"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**分类 input → 路由到专门 handler**. 一个 LLM 当 router 判断类别, 不同类别走不同 model / prompt / pipeline.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Routing"}] }
+      ],
+      "use_cases": [
+        { "text": "**适合**: input 类型多样, 各类型需要专门处理.\n**例子**:\n- 客服: 简单 FAQ → 小模型快返; 复杂 → 大模型 + 人工\n- 翻译: 短文本 → Haiku; 长文档 → Opus\n- 代码助手: bug 修复 / 新功能 / 重构, 路由到不同 agent", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Routing"}] }
+      ],
+      "interview_points": [
+        { "text": "**省钱手段**: 大部分流量走小模型, 路由器自己也是小模型. Anthropic 实测 80% 流量能走 Haiku, 20% 才需要 Sonnet/Opus.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Parallelization (Sectioning / Voting)",
+    "aliases": ["agent 并行", "sectioning voting"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "两种并行模式:\n\n**Sectioning** (分工): 把任务切独立 sub-task 给多个 agent 并行做, 合并结果. 加速.\n\n**Voting** (投票): 同一任务多 agent 并行做, 投票/打分选最佳. 提精度.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Parallelization"}] }
+      ],
+      "use_cases": [
+        { "text": "**Sectioning 例**:\n- 内容 moderation: 一个查毒性, 一个查 PII, 一个查版权, 并行\n- 简历筛选: 不同 agent 检查不同维度 (技能/经验/学历)\n\n**Voting 例**:\n- 代码 review: 3 个 agent 独立 review, 至少 2 个标 issue 才 flag\n- 关键决策: 投资/招聘类高 stake 决策多 LLM 投票\n- LLM-as-Judge: 偶数评委避平票, 加 tie-break 规则", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Parallelization"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Orchestrator-Workers",
+    "aliases": ["orchestrator workers", "agent 编排"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**中央 orchestrator LLM 动态拆任务 + delegate 给 worker LLMs + 合成结果**. 关键区别于 Parallelization: 子任务**不预定义**, 由 orchestrator 看 input 动态决定.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Orchestrator-Workers"}] }
+      ],
+      "use_cases": [
+        { "text": "**适合**: 复杂任务事先不知道要拆什么子任务.\n**经典例**: GitHub issue 修复跨多文件\n- Orchestrator: 读 issue + 探索 repo + 决定改哪几个文件\n- Workers: 每个文件一个 worker 修改\n- Orchestrator: 合并 + 跑测试 + 生成 PR\n\n**Anthropic 自家 Claude Code 就是这个模式**.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Orchestrator-Workers"}] }
+      ],
+      "interview_points": [
+        { "text": "**vs Parallelization Sectioning**: Sectioning 子任务**写死**(content moderation 三个维度固定); Orchestrator-Workers **动态决定**(GitHub issue 涉及哪些文件运行时定).", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Evaluator-Optimizer",
+    "aliases": ["evaluator optimizer", "迭代优化"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**一个 LLM 生成, 另一个 LLM 评估 + 反馈, 循环直到达标**. 等价于自动化的人在回路改稿.", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Evaluator-Optimizer"}] }
+      ],
+      "use_cases": [
+        { "text": "**适合**: 任务有清晰评估标准 + 多轮迭代能持续改进.\n**例**:\n- 翻译: generator 翻译, evaluator 找语义错 / 文化不当, generator 重译\n- 文案: 写广告 → 检查吸引力 / brand 一致 → 改 → 再检\n- 代码: 写解 → 跑测试 → 失败拿 error 改 → 再跑\n\n**关键**: evaluator 必须能给**actionable** feedback, 不是只评 \"7/10\".", "cites": [{"source_id": "anthropic-effective-agents", "locator": "Evaluator-Optimizer"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "LangGraph",
+    "aliases": ["langgraph", "LangChain graph"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**LangChain 的 graph-based agent framework**. 把 agent 定义成 stateful 有向图: nodes (function/LLM/tool calls) + edges (条件路由). 支持循环、人工介入、持久化状态.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs LangChain 老的 chain API: chain 是 DAG 单向, 不能循环; graph 支持 cycle (用于 ReAct/Reflexion 等反复 reason-act 模式).\n\nvs AutoGen: LangGraph 更显式控制流, AutoGen 更对话式自由.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**生产级特性**: checkpointer (state 持久化, 可 resume), interrupt (人工介入), streaming, 内置 Tracing (LangSmith).\n\n**何时选**: agent 需要 stateful + 复杂控制流 + 跟 LangChain 生态绑死.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "AutoGen",
+    "aliases": ["autogen", "Microsoft AutoGen"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Microsoft 多 agent 对话框架**. 通过 agents 之间的对话编程, 不是显式 graph. agents 可以 1v1 chat / GroupChat / 嵌套 chat.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs LangGraph: AutoGen 更 conversational, 适合 agent 之间松散协作 (代码 review 类); LangGraph 更结构化, 适合复杂确定流程.\n\nAutoGen 0.4 重写后用 actor model, 性能和扩展性大幅提升.", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "**经典 demo**: 一个 AssistantAgent 写代码 + 一个 UserProxyAgent 跑代码 + 一个 CriticAgent 评审, 三方循环改进.\n\n企业场景: 内部研发助手, 不同部门 agent 协作回答跨域问题.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "CrewAI",
+    "aliases": ["crewai", "crew ai"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Role-playing multi-agent framework**. 用'公司'比喻: 每个 agent 是个角色 (Researcher / Writer / Editor), 有 role + goal + backstory; tasks 分配给 agent, crew 协调.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs AutoGen: CrewAI 角色定义更结构化, 配置更声明式 (YAML/Python); AutoGen 更代码灵活但 setup 复杂.\n\nvs LangGraph: 抽象层级更高, 适合非工程师快速搭多 agent; LangGraph 给工程师精细控制.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**适合**: 业务场景明确分工 (内容生产/调研/客服等), 不太需要复杂 state machine. 上手快, demo 友好.\n**坑**: 抽象多, debug 不如 LangGraph 直接; LLM 角色扮演有时出戏需要 prompt 调优.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "MCP (Model Context Protocol)",
+    "aliases": ["MCP", "Model Context Protocol", "Anthropic MCP"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Anthropic 2024 提出的开放协议**, 标准化 LLM client (Claude/Cursor/VSCode) ↔ tool server (DB/Git/Slack/file) 的通信. 类似 USB-C: 任何 client 即插即用任何 MCP server.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**3 个原语**:\n- **Resources**: 静态/动态数据 (file / DB row / API response)\n- **Tools**: 可调函数 (执行操作有副作用)\n- **Prompts**: 模板化的对话起点\n\n**Transport**: stdio (本地) / SSE (远程) / 未来 HTTP/2.\n\n**Capability negotiation**: client 和 server 握手时告知各自支持的 feature.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs OpenAI function calling: function calling 是 client (OpenAI 自家) 定义工具签名 send-with-each-request; MCP 是**协议层**, 让任何 client 接任何 server, 工具实现侧不知道是哪个 LLM 在调.\n\nvs LangChain Tool: LangChain Tool 是 Python class; MCP 是 wire protocol 跨语言跨 vendor.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**生态**: 2025 起 Cursor / VSCode / Claude Desktop / Zed / Sourcegraph 都支持 MCP. 官方 server: GitHub / Git / Slack / Postgres / Puppeteer / Filesystem.\n\n**Anthropic Skills (2025) 是 MCP 之上的 abstraction**: 把 system prompt + tools + files 打包成可复用 skill.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Reflexion",
+    "aliases": ["reflexion", "self-reflection agent"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Shinn 2023**: Agent 在每次失败后用自然语言写'反思笔记' (lessons learned) 存进 memory, 下次任务带上反思. 不更新模型权重 (相当于 in-context RL).", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Loop**:\n1. Actor agent 尝试任务\n2. Evaluator 评估结果 (binary success / score)\n3. Self-Reflection LLM 写自然语言反思 (\"我上次没注意 X, 下次应该 Y\")\n4. 反思加入 episodic memory\n5. 下次再 try 带反思 prompt\n\n通常 3-5 轮收敛.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs RL fine-tune: Reflexion 纯 inference time, 不调参; 改进只在 single agent 实例的 context 里, 不持久化到 model.\n\nvs ReAct: ReAct 单轮 reason-act-observe 循环; Reflexion 跨**任务**(episode 级) 学习反思.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Tree of Thoughts",
+    "aliases": ["ToT", "tree of thoughts"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Yao 2023**: 推理任务上让 LLM 生成多个候选 thought 形成树, 用搜索 (BFS/DFS) + LLM 评估 + 剪枝, 选最优路径. 适合需要规划+回溯的题 (Game of 24 / 创意写作 / 数学).", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**4 步**:\n1. **Thought decomposition**: 把任务拆成中间步骤 (每步一个 thought node)\n2. **Thought generator**: 每个节点 LLM 生成 k 个候选 next thought\n3. **State evaluator**: LLM 评估每个 thought 价值 (vote 或 score)\n4. **Search**: BFS/DFS 选最好的 branch, 剪枝差的", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs CoT: CoT 单条线性 reasoning, 错一步全错; ToT 多条并行+评估+回溯, 但成本 ~k× LLM call.\n\nvs GoT (Graph of Thoughts): GoT 节点可任意连接合并 (DAG), 表达力最强但工程复杂.\n\nvs Self-consistency: SC 也是多采样投票, 但只看最终答案; ToT 评估每个中间步.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "MemGPT / Letta",
+    "aliases": ["MemGPT", "letta", "agent memory"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**UC Berkeley 2023 (现 Letta)**: 给 LLM 加'OS 风格' memory hierarchy, 解决有限 context window 问题. LLM 自己调 tool 管理 memory (像 paging).", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Memory hierarchy** (借鉴 OS 虚存):\n- **Main context** (相当于 RAM): system prompt + working memory + recent messages, 放在 LLM context window\n- **External context** (相当于 disk): recall storage (历史对话) + archival storage (长期知识), LLM 通过 tool 调用搜索/读写\n\n**LLM 自主**:\n- 当 main context 快满 → 调 `core_memory_replace` / `archival_memory_insert` 把内容挪到外存\n- 需要历史 → 调 `recall_memory_search` 拉回\n- 这套 tool calling 由 system prompt 教 LLM 主动维护", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**核心 insight**: 不是简单加 RAG, 而是让 **LLM 自己决定**记什么忘什么. 类似 OS 给程序员透明的虚存抽象, 这给 LLM 透明的'无限 context'.\n\n**Letta**: MemGPT 团队的商业化产品, 加了 GUI + agent server + multi-tenant.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Claude Code",
+    "aliases": ["claude code", "Claude Code CLI"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Anthropic 2024 出的命令行 agentic coding tool**. 终端里调 Claude 模型, 自己读写文件 / 跑 Bash / 编辑代码 / 跑测试 / 调 MCP server.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**核心循环**: user 指令 → Claude plan → 调 tool (Read/Write/Edit/Bash/...) → 看 output → 继续 / 完成. 是 Orchestrator-Workers + Augmented LLM 的结合.\n\n**架构亮点**:\n- **Hooks**: shell 级强制 (LLM 绕不过的安全/工作流规则)\n- **Skills**: 可复用 prompt + tools + files\n- **MCP server**: 标准化外部接入 (DB/Browser/Slack/...)\n- **Subagents**: 主 agent 调子 agent 分工 (Explore / Plan / Code-Reviewer)", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "vs Cursor: Cursor 是 IDE (VSCode fork) + AI; Claude Code 是 CLI + agent. Cursor 强在 inline 编辑体验, Claude Code 强在长 horizon agent 任务.\n\nvs Devin: Devin 远程 cloud agent, 浏览器 + IDE 集成; Claude Code 本地 CLI, 信任本地环境, 速度快 cost 低.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Devin",
+    "aliases": ["devin", "Cognition Devin"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Cognition Labs 2024 首个自主软件工程 agent**. Cloud 端跑, 内置 IDE + 浏览器 + shell, 能从需求直接交付 PR (含 design / coding / test / debug).", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**SWE-bench Verified 评分**: Devin 2.0 45.8% (2026 数据). 行业第一波证明 agent 真能写真代码的产品.\n\n**$500/month** 起 (B2B + 团队订阅). 卖点是 \"junior engineer 替代品\", 实际 case 看复杂 task 仍需人监督.\n\n**架构**: 多 agent (Planner + Coder + Reviewer + Web Search) + 长 horizon memory + 文件系统 + 浏览器", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Cursor",
+    "aliases": ["cursor IDE", "cursor agent"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Anysphere 出的 AI-first IDE** (VSCode fork). Tab autocomplete + Cmd-K inline edit + Composer multi-file agent + 内置 MCP.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**核心差异 vs Copilot**:\n- Composer 多文件 agent 模式 (Copilot 只 inline)\n- 自家训的 cursor-small 做 next-edit prediction (比 Copilot 准)\n- 默认接 Claude/GPT-4.6, 用户可选\n\n**2026 估值 $9.9B**, 是 AI dev tools 最热的赛道领跑者. ARR $500M+.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Claude Computer Use",
+    "aliases": ["computer use", "claude computer", "Operator"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**Anthropic 2024.10 发布**: Claude 直接操作电脑桌面 (截屏 + 鼠标键盘控制). 不需要专门 API, 用 GUI 像人一样点击/输入/滚动.\n\n**OpenAI Operator (2025.1)** 是类似产品, 走浏览器路线.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Loop**:\n1. 截屏 (1024×768 typical)\n2. Claude 看图 + 任务 → 决定下一步 action (click x,y / type text / scroll / hotkey)\n3. 执行 action\n4. 再截屏看结果\n5. 重复至任务完成\n\n**OSWorld benchmark**: 真实办公任务 (Excel/Chrome/Terminal), Claude Sonnet 4.5 ~50%, 人类 ~70%.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**为什么是 break-through**: 解锁了\"agent 能用任何软件\"的可能 (不再需要每个 SaaS 给 API). 长尾自动化能 democratize.\n\n**坑**:\n- 慢 (每步要截屏+VLM, 5-15s/step)\n- 易错 (UI element 识别错)\n- 安全 (agent 误点关键按钮 — 必须 sandbox)\n- Cost ($$$, multimodal token 贵)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "SWE-bench",
+    "aliases": ["SWE-bench Verified", "code agent benchmark"],
+    "topic_ids": ["18.6"],
+    "slots": {
+      "definition": [
+        { "text": "**Princeton 2023 提出, OpenAI 2024 verified 子集**: 2,294 个真实 GitHub issue+PR (Python repos), agent 给出 patch, 用原 PR 测试套件验证.\n\n**SWE-bench Verified** = 500 题人工核验子集, 排除歧义/不可解题, 是当前标准.", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**2026 Q1 leaderboard**:\n- Claude Mythos Preview: **93.9%**\n- GPT-5.3 Codex: 85%\n- Claude Opus 4.5: 80.9%\n- Devin 2.0: 45.8%\n\n**注意**: OpenAI internal audit 发现 frontier model 能 verbatim 复现某些 gold patch (训练数据污染), 部分分数有水分.", "cites": [{"source_id": "rapidclaw-2026", "locator": "benchmarks"}] }
+      ],
+      "pitfalls": [
+        { "text": "**SWE-bench 局限**:\n- 只 Python, 不覆盖 JS/Java/Rust\n- 全是 bug fix, 没 feature dev / refactor / 架构\n- Repo 选自 12 热门项目, 不代表 enterprise codebase\n- 单文件改动占多 (multi-file agent 优势难显)\n\n**新 benchmark**: SWE-bench Multimodal / SWE-Lancer (有钱赏) / Polyglot (多语言).", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "GAIA / WebArena / tau-bench",
+    "aliases": ["GAIA", "WebArena", "tau-bench", "agent benchmarks"],
+    "topic_ids": ["18.6"],
+    "slots": {
+      "definition": [
+        { "text": "三个 agent 综合 benchmark:\n\n**GAIA** (Meta 2023): 466 个真实助手任务 (查资料/计算/多模态), 人类轻松 92%, GPT-4 base 15%, Claude Opus 4.7 87.6%.\n\n**WebArena** (CMU 2024): 真实网站环境 (购物/Gitlab/Reddit/CMS) 多步任务. Claude Mythos Preview 68.7%.\n\n**tau-bench** (Sierra 2024): customer service agent, 有 policy 约束, evaluator 是 user simulator. 更贴生产 agent.", "cites": [{"source_id": "rapidclaw-2026", "locator": "benchmarks"}] }
+      ],
+      "comparison": [
+        { "text": "覆盖维度:\n- **GAIA**: general assistant (查资料 + 推理 + 工具)\n- **WebArena**: 浏览器任务 (UI 交互 + 长 horizon)\n- **tau-bench**: 受约束的客服 (policy adherence + 用户模拟)\n- **SWE-bench**: 代码 (bug fix)\n- **OSWorld**: 桌面 (Claude Computer Use 战场)\n- **METR HCAST**: 长 horizon (任务时长上限测试)\n\nChristina PhD 方向 18.6 — 其实就是研究这一堆的 evaluation methodology.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Agent Guardrails",
+    "aliases": ["agent safety", "guardrails", "Constitutional AI"],
+    "topic_ids": ["18.5"],
+    "slots": {
+      "definition": [
+        { "text": "**让 agent 不胡来的多层防御**:\n1. **Input guard**: prompt injection 检测 (regex / 小模型分类)\n2. **Tool permission scope**: 每个 tool 有 ACL (e.g., 读 file 可以 / 删 file 禁)\n3. **Sandbox**: agent 跑在容器 / VM (限制网络 / 文件系统访问)\n4. **Output filter**: 输出前查 PII / 毒性 / 越权\n5. **Human-in-the-loop**: 高 risk 动作 (转账 / 删 DB / send email) 必须人确认", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**Constitutional AI** (Anthropic): 训练时给模型 'constitution' (一组原则), 用 RL 让模型 self-critique 自己回答是否违 constitution. 减少 RLHF 标注成本.\n\n**Industry 框架**: NVIDIA NeMo Guardrails / Guardrails AI / Llama Guard / 自建", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Agentic-specific 风险**:\n- Goal hijacking (用户 prompt 让 agent 改任务)\n- Tool abuse (用合法工具做坏事)\n- Resource exhaustion (无限循环 / 大 query DB)\n- Privilege escalation (拿到管理员 token)\n- 数据 exfil (用 tool 把私密发外部)\n\nOWASP LLM Top 10 + OWASP Agentic AI 是常考资料.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Agent Observability",
+    "aliases": ["agent tracing", "LangSmith", "Langfuse", "agent 可观测性"],
+    "topic_ids": ["18.6"],
+    "slots": {
+      "definition": [
+        { "text": "**Agent 比传统服务难调** (轨迹多变 + 非确定 + 多 LLM 调用 + tool 副作用). 需要专门的 observability stack 追踪每次 trajectory.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**核心数据**:\n1. **Trace**: 整个 task 的 tree (each LLM call / tool call as span)\n2. **Token / cost / latency** per span\n3. **Input / output** (含 prompt / completion full text)\n4. **Tool args / results**\n5. **Metadata**: model version / user id / task id / session id\n\n**Industry tools**:\n- **LangSmith** (LangChain 自家, hosted)\n- **Langfuse** (open source)\n- **Helicone / W&B Weave** \n- **OpenTelemetry Gen-AI semantic conventions** (2024 起标准化)\n- **Arize Phoenix** (开源)", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**Agent 评估 pipeline** (Christina PhD 方向):\n1. 收集 trace (生产 traffic)\n2. 标注成功/失败 (人工 / LLM-as-judge / 自动 metric)\n3. 失败聚类 (按 root cause: hallucination / tool error / planning)\n4. 回归测试 (golden trace set 持续跑确保不回退)\n5. A/B test (新 agent 对老 agent on real traffic)\n\n这是工业 agent 真正能 ship 的关键, 不只是 prompt engineering.", "cites": [] }
+      ]
+    }
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "knowledge_card_title": "Workflow vs Agent",
+    "question": "怎么判断该用 workflow 还是 agent? Anthropic 的标准?",
+    "answer": "**Anthropic 一句话标准**: \"If the LLM can change your application's control flow, it's an agent.\"\n\n**判据 (3 维):**\n1. **Predictability** — 任务路径是否预先知道?\n   - 知道 → workflow\n   - 不知道 (动态决策) → agent\n\n2. **Cost / latency budget** — 能接受多少 LLM 调用?\n   - 紧 → workflow (少调用, 路径短)\n   - 宽 → agent (反复 reason-act 多调用)\n\n3. **Failure mode tolerance** — 错了能否人工兜底?\n   - 不能 → workflow + 强 validation\n   - 能 (人在最后审核) → agent OK\n\n**Anthropic 核心建议**:\n\"Start simple. Build the simplest workflow that solves the problem. Only escalate to agents when you've demonstrated the workflow can't handle the variability.\"\n\n业界 ~80% production '\"AI 系统\"' 其实是 workflow + augmented LLM, agent 占少数."
+  },
+  {
+    "knowledge_card_title": "Augmented LLM",
+    "question": "Augmented LLM 的三个 augmentation 各解决什么问题?",
+    "answer": "LLM 单独的 3 个核心限制 → 3 个 augmentation:\n\n**1. 知识陈旧 + 训练 cutoff** → **Retrieval (RAG)**\n- 把外部知识 (文档 / KB / web) 检索回来塞 context\n- 解决: 时效 / 私有数据 / 长尾事实\n\n**2. 不能改世界** → **Tools (function calling)**\n- 调外部 API (DB query / web search / send email / 控制 robot)\n- 解决: 副作用动作 / 精确计算 / 实时数据\n\n**3. Context window 有限 + 无状态** → **Memory**\n- 短期 (working buffer) + 长期 (向量库 / KV) + persona\n- 解决: 跨对话连续性 / 个性化 / 长 horizon 任务\n\n**关键设计**: 让 LLM 主动决定何时用哪个 augmentation (不是写死规则). Tool schema + memory API 暴露给 LLM, 它 reason 出 plan 自己调.\n\n这就是为什么 function calling / MCP 是 agent 时代的 'system call'."
+  },
+  {
+    "knowledge_card_title": "Prompt Chaining",
+    "question": "Prompt Chaining 什么时候比单 mega-prompt 好? 什么时候比 agent 差?",
+    "answer": "**比单 prompt 好的场景** (chaining win):\n- 任务能拆 well-defined 子步骤\n- 中间 output 可独立验证 (加 gate)\n- 准确率比延迟重要\n- 上下文太长塞不下 → 分段 chain\n\n例: 合同审 → 抽条款 → 验合规 → 总结. 每步专注一件, 错误不传染.\n\n**比 agent 好** (workflow win 还是 chain):\n- 路径**完全可预测** (你写得出每步顺序)\n- 不需要回路 / 重试 / 动态分支\n- 调试简单, 路径可视化\n\n**比 agent 差** (该升级 agent):\n- 任务事先不知道哪些步 (e.g., 修 unknown bug)\n- 需要根据中间结果改路径 (failure 时换策略)\n- 子任务数依输入而异\n\n**口诀**: chain 是确定的'流水线', agent 是 LLM 当导演的'剧本即兴'."
+  },
+  {
+    "knowledge_card_title": "Agent Routing",
+    "question": "Routing 怎么做才高效? Router 本身用大模型还是小模型?",
+    "answer": "**Router = 分类器**, 决定 input 走哪条 pipeline.\n\n**用小模型的理由 (90% 场景)**:\n- 分类任务简单 (枚举 5-20 类), 不需要 Opus 的推理\n- Router 100% 流量都过, 大模型成本爆\n- 小模型 (Haiku / GPT-4o-mini / Llama-8B fine-tune) latency 几十 ms\n\n**用大模型的理由 (少数复杂场景)**:\n- 分类需要深推理 (法律咨询分类 / 医疗 triage)\n- 类别多 / 边界模糊\n- 还要顺便提取 metadata\n\n**优化技巧**:\n1. **Cache**: 同 input hash 直接 reuse 上次路由结果\n2. **Confidence threshold**: 路由器给 confidence, 低 → fallback 到 strong model\n3. **A/B 监控**: 路由错配的 case 反馈到 router 微调数据\n4. **Embedding-based router** (无 LLM): query embedding + nearest centroid, 微秒级\n\n**Anthropic 实战**: 80% 流量走 Haiku, 复杂 20% 升 Sonnet/Opus → 总 cost 降 70%."
+  },
+  {
+    "knowledge_card_title": "Parallelization (Sectioning / Voting)",
+    "question": "Sectioning 和 Voting 的本质区别? 各自典型场景?",
+    "answer": "**Sectioning (分工)**:\n- 任务可切**独立** subtask, 并行做\n- 加速 (latency = max(subtask), 不是 sum)\n- 例: content moderation 分别查毒性 / PII / 版权\n\n**Voting (投票)**:\n- **同一**任务多个 agent 独立做\n- 提精度 (减少单 LLM 随机性)\n- 例: 代码 review 多 agent 投票才 flag issue\n\n**关键区别**: Sectioning 减时间, Voting 减错误.\n\n**何时用 Voting**:\n- High-stakes 决策 (招聘 / 投资 / 医疗诊断)\n- LLM-as-judge 评估 (避免单评委偏)\n- 数学 / 推理任务 (self-consistency, 投票答案)\n\n**Voting 设计**:\n- 偶数评委 + 平票时 fallback (走强模型 / 人工)\n- 不同温度采样的同模型 (低成本) vs 不同 model (覆盖更广 bias)\n- 投票方式: majority / weighted / chain-of-judges"
+  },
+  {
+    "knowledge_card_title": "Orchestrator-Workers",
+    "question": "Orchestrator-Workers 跟 Sectioning Parallelization 有什么本质不同?",
+    "answer": "**核心区别: subtask 是不是预先知道**.\n\n**Sectioning** (Parallelization 的一种):\n- subtask **静态拆**: \"moderation 永远查毒性+PII+版权\"\n- worker 数固定, 各负责什么写死\n- 适合: input variance 低 (每个请求都拆成相同子任务)\n\n**Orchestrator-Workers**:\n- subtask **动态拆**: orchestrator 看 input 决定要不要拆 / 拆几个 / 谁做什么\n- worker 数和分工**依 input 而异**\n- 适合: input 不可预测 (e.g., GitHub issue 涉及哪几个文件运行时定)\n\n**典型例子对比**:\n\nSectioning 适合: 'classify support ticket as {billing / tech / sales} + extract entities + sentiment' — 3 子任务永远跑\n\nOrchestrator-Workers 适合: 'fix this GitHub issue' — orchestrator 先探索 repo, 决定改 a/b/c 三文件, 派 3 worker, 然后整合 / 跑测试 / 出 PR\n\n**Claude Code 主架构就是 Orchestrator-Workers**: 主 agent 看你指令决定调 sub-agent / 跑 Bash / 读 File / Edit, 不是死板的 pipeline."
+  },
+  {
+    "knowledge_card_title": "Evaluator-Optimizer",
+    "question": "Evaluator-Optimizer 跟 Reflexion 像不像? 差别在哪?",
+    "answer": "**像**: 都是 \"做了 → 评 → 改 → 再做\" 的迭代闭环.\n\n**核心差别**:\n\n**Evaluator-Optimizer** (Anthropic pattern):\n- **单一任务内**循环\n- generator 和 evaluator 是两个**不同**的 LLM 调用 (角色分离)\n- 直到达 quality threshold 停\n- 例: 翻译生成 → 评翻译质量 → 再生成 → 直到打分 ≥ 8/10\n\n**Reflexion** (跨任务学习):\n- **跨 episode** 累积反思\n- actor 失败 → 自己写反思 (lessons learned) 存 memory\n- 下次任务**带反思**重 try\n- 不是单任务内反复改, 是 episode 间累积知识\n\n**类比**:\n- Evaluator-Optimizer = 单次作业反复改稿到满意\n- Reflexion = 这次作业失败, 记一笔'下次别再这样', 下次新作业带这笔记\n\n**实战常组合**: Evaluator-Optimizer 解决单 task quality, Reflexion 解决跨 task improvement. Cursor / Claude Code 内部循环结合了两者."
+  },
+
+  {
+    "knowledge_card_title": "LangGraph",
+    "question": "LangGraph 跟 LangChain 老 chain API 区别? 为什么 agent 需要 graph?",
+    "answer": "**LangChain 老 chain API (Runnable)**:\n- DAG (有向无环图), 单向\n- 不能循环 / 不能回路\n- 适合 RAG / 简单 workflow\n- Agent 需要回路 (reason → act → observe → reason 反复), DAG 不够\n\n**LangGraph (graph)**:\n- 支持 **cycle** (满足 ReAct/Reflexion 反复循环模式)\n- **Stateful**: state 在 nodes 间显式传递 (TypedDict schema)\n- **Conditional edges**: 边可以是函数, 根据 state 决定路由\n- **Checkpointer**: state 持久化, 支持 resume / time-travel debug\n- **Human-in-the-loop**: 显式 interrupt 节点等人确认\n\n**核心抽象**:\n```python\ngraph = StateGraph(MyState)\ngraph.add_node('plan', plan_node)\ngraph.add_node('execute', execute_node)\ngraph.add_conditional_edge('execute', should_replan,\n    {'yes': 'plan', 'no': END})\n```\n\n**适合**:\n- 复杂 agent 工作流 (多步 / 多 agent / 有回路)\n- 需要 production-grade observability (LangSmith 自动 trace)\n- 已经在 LangChain 生态 (复用 tool / retriever / LLM wrapper)"
+  },
+  {
+    "knowledge_card_title": "MCP (Model Context Protocol)",
+    "question": "MCP 跟 OpenAI function calling 区别? 为什么需要 MCP?",
+    "answer": "**OpenAI function calling**:\n- 客户端定义函数 schema (JSON Schema), 跟每次 request 一起发\n- 函数实现在客户端, OpenAI 不管\n- **绑定 LLM vendor**: 切到 Claude 要重写代码\n- 工具实现要写在你的 app 里 (单 monorepo)\n\n**MCP (Model Context Protocol)**:\n- **协议层** (像 HTTP), 不绑 LLM vendor\n- Tool 服务**独立 server**, 用 stdio/SSE 跟 client 通信\n- **任何 MCP client** (Claude/Cursor/VSCode/Zed) 即插即用**任何 MCP server**\n- Tool 实现侧**不知道是哪个 LLM 在调**, 解耦\n\n**类比**:\n- Function calling = 自家 USB 线 (OpenAI 自家 USB / Anthropic 自家 USB)\n- MCP = USB-C 标准 (所有人都能用)\n\n**MCP 三个原语**:\n- Resources (数据)\n- Tools (函数, 可有副作用)\n- Prompts (模板)\n\n**生态 (2025-2026)**: Claude Desktop / Cursor / VSCode / Zed / Sourcegraph / Continue 都支持. 官方 server: GitHub / Slack / Postgres / Puppeteer.\n\n**Anthropic Skills (2025)** 在 MCP 之上加抽象, 把 prompt + tools + files 打包成可复用 skill (Christina 现在正在用)."
+  },
+  {
+    "knowledge_card_title": "Reflexion",
+    "question": "Reflexion 为什么 work? 跟 RL fine-tune 比优劣?",
+    "answer": "**为什么 work**:\n1. **LLM 是通用 reasoner**: 给它一段'上次错了, 因为 X', 它能识别同样模式新任务上避免\n2. **Episodic memory 模拟人类学习**: 不是改'肌肉记忆' (model 权重), 是改'经验笔记' (context)\n3. **Self-explanation 强化**: 写反思的过程本身让 LLM 更深理解失败原因\n\n**vs RL fine-tune**:\n\n**Reflexion 优势**:\n- 不调模型权重 → 即时生效 (一次任务后立刻改进)\n- 单 agent 私有 (你的 agent 的反思不污染别人)\n- 不需要大量 trajectory 数据\n- 失败原因可读 (反思是自然语言, 可审计)\n\n**Reflexion 劣势**:\n- 反思只在 context, 一旦丢 context 就失效\n- 不能跨 agent 共享 (除非显式 export 反思 KB)\n- 反思 inflation: 反思多了塞爆 context\n- 反思可能错 (LLM 自我评估有 bias)\n\n**RL fine-tune 优势**:\n- 改 model 权重, 持久\n- 跨用户共享改进\n- 大规模数据下质量稳\n\n**实战组合**: 先 Reflexion 快速迭代 + 收集高质量反思 → 反思变 SFT 数据 → fine-tune (蒸馏)."
+  },
+  {
+    "knowledge_card_title": "Tree of Thoughts",
+    "question": "ToT 跟 CoT / Self-consistency 关系? 啥时该用?",
+    "answer": "三者递进:\n\n**CoT (Chain-of-Thought, Wei 2022)**:\n- 单条线性 reasoning ('Let's think step by step')\n- 1× LLM call\n- 一旦中间错就全错\n\n**Self-Consistency (Wang 2022)**:\n- 多次 CoT 采样 (温度高), 投票最终答案\n- k× LLM call, 提精度\n- 不评估中间步, 只看最终\n\n**Tree of Thoughts (Yao 2023)**:\n- 把 reasoning 拆成 thought 节点形成树\n- 每节点 LLM 生 k 个 candidates + 评估 + 剪枝\n- BFS/DFS 搜索, 回溯差路径\n- ~k^depth × LLM call, 但能解 CoT 解不了的 (需规划+回溯)\n\n**何时用 ToT**:\n- **需要 lookahead / 回溯** (Game of 24 数学题 / 棋类 / creative writing)\n- 答案空间组合爆炸 + 有评估函数\n- 单 CoT 准确率 < 50% (规划任务)\n\n**何时不用 ToT**:\n- 简单题 CoT 已经 95% → 上 ToT 浪费 cost\n- 评估函数难写 (没法判断中间 thought 好坏)\n- Latency 敏感场景\n\n**最新替代**: o1 / Claude 4 的 extended thinking — 模型内置 reasoning, 不用显式 ToT."
+  },
+  {
+    "knowledge_card_title": "MemGPT / Letta",
+    "question": "MemGPT 跟 RAG 有什么不同? 为什么叫 'LLM as OS'?",
+    "answer": "**vs 朴素 RAG**:\n\nRAG:\n- 静态 KB, 不变\n- 客户端控制 retrieve 时机 (每次 query 都 retrieve)\n- 用户 vs KB 关系单向 (用户读 KB, 不写)\n\nMemGPT:\n- **Memory 可写可读** (LLM 自己往 archival 写)\n- LLM **自主**决定何时 retrieve / 何时存 / 何时把 main context 内容挪外存\n- Memory 是动态的, 跟对话演进\n\n**'LLM as OS' 类比**:\n\n| OS 概念 | MemGPT |\n|---|---|\n| RAM | Main context (LLM window) |\n| Disk / swap | Archival memory (向量库) |\n| File system | Recall memory (历史对话) |\n| System call | Tool calling (memory_search / memory_insert) |\n| Page fault | Context 不够时 LLM 主动 evict / fetch |\n| Process scheduling | LLM 自己规划何时 swap |\n\n**关键 insight**: 给 LLM 一组 memory management tool, 教它在 system prompt 里何时用. LLM 学到 \"context 快满了, 我得把不重要的搬走\".\n\n**实战**:\n- 长对话客服 (上下文跨周/月)\n- 个人助手 (跟你聊 100 次后记得偏好)\n- Agent 长 horizon 任务 (跨 day 项目)\n\n**Letta** 是 MemGPT 商业化, 加 GUI + multi-tenant + agent server."
+  },
+
+  {
+    "knowledge_card_title": "Claude Code",
+    "question": "Claude Code 跟 Cursor 谁更适合什么场景?",
+    "answer": "**Cursor**:\n- IDE 体验 (VSCode fork)\n- Tab autocomplete 极强 (cursor-small 模型)\n- Cmd-K inline edit (改当前选区)\n- Composer 多文件 agent\n- 适合: **inline coding** (写每一行时 AI 辅助), 看着代码改改改\n\n**Claude Code**:\n- CLI / Terminal\n- 默认 Claude 模型 (Sonnet/Opus 4.x)\n- Hooks shell-level 强制 (LLM 绕不过的安全/工作流)\n- Skills (复用 prompt+tools+files)\n- MCP server 标准化外部接入\n- Subagents (主 agent 调子 agent 分工)\n- 适合: **长 horizon agent 任务** (\"加个功能 + 跑测试 + 出 PR\"), 不在 IDE 看代码也行\n\n**典型 workflow 差异**:\n- Cursor: 你看着写 100 行, AI 补 80 行, 你审 / 改 / 接受\n- Claude Code: 你说一句 \"add caching to user service\", 它自己 explore / plan / edit 多文件 / 测试 / 你最后审\n\n**协同**: 很多人两个都用, Cursor 写主代码, Claude Code 做长任务 (refactor / 大重构 / bug 调研).\n\n**Christina 目前用 Claude Code 做这个 App 项目** (你能从代码风格看出: Skills / Hooks / 大批量批改 / 工具调用)."
+  },
+  {
+    "knowledge_card_title": "Claude Computer Use",
+    "question": "Computer Use 为什么是 break-through? 工程上有什么坑?",
+    "answer": "**Break-through 的理由**:\n1. **解锁所有软件**: 不需要每个 SaaS 给 API. Agent 能用 Excel / Photoshop / 老旧企业系统等任何 GUI 软件\n2. **Long-tail 自动化 democratized**: 之前手动重复的 GUI 任务都可自动化\n3. **跨应用工作流**: agent 能 'open browser 查 X → 复制结果 → paste 到 Excel → 截图发 Slack'\n\n**Loop**:\n截屏 → Claude (multimodal) 看图+任务 → 生成 action (click x,y / type / scroll) → 执行 → 再截屏 → repeat\n\n**工程坑**:\n1. **慢**: 每步 5-15s (截屏 + multimodal VLM + decode action)\n2. **错误率高**: UI element 识别错 (相似按钮 / 弹窗遮挡 / 多语言界面)\n3. **安全**: agent 可能误点关键按钮 ('delete all' / '转账') → **必须 sandbox** (Docker / VM / 只读模式)\n4. **Cost**: multimodal token 贵 (一张截图几千 token), 长任务 $$$\n5. **不确定**: 同 task 跑两次轨迹完全不同, 难 reproduce\n6. **Drift**: UI 改版 (Chrome 升级 / 应用更新), 之前 work 的 action 失败\n\n**实战缓解**:\n- **DOM-based fallback**: 浏览器场景下 prefer DOM accessibility tree 而非纯截屏 (browser-use / playwright)\n- **action verification**: 每步 action 后 wait + verify state (不是开火即忘)\n- **rollback / checkpoint**: 关键操作前快照, 失败回滚\n- **Human approval gates**: 任何破坏性 action (delete / send / pay) 必须人确认\n\n**OSWorld benchmark**: Claude Sonnet 4.5 ~50%, 人类 ~70%. 离生产可用还有距离, 但已能跑很多窄场景."
+  },
+
+  {
+    "knowledge_card_title": "SWE-bench",
+    "question": "SWE-bench Verified 高分 (90%+) 是真的吗? Devin 45% 是不是太差?",
+    "answer": "**高分有水分**:\n\nOpenAI internal audit (2025) 发现:\n- SWE-bench 500 Python tasks 大部分来自 12 个热门 GitHub repo\n- 这些 repo 在 GPT/Claude 训练数据里\n- 模型能 **verbatim 复现某些 gold patch** → 不是'解题', 是'记住答案'\n\n**Claude Mythos Preview 93.9% / GPT-5.3 85% 都受影响**.\n\n**Devin 45.8% 不是差**:\n- Devin 是 cloud agent, **完整生命周期** (explore → plan → code → test → debug → PR), 不只'生成 patch'\n- 评估包括 'agent 能否独立从 issue 文本一路到 PR 通过测试'\n- 这比'给 issue + buggy file, 输出 patch'难得多\n- 前 SOTA agent (Cognition AI 论文) 也就这个水平\n\n**正确理解 leaderboard**:\n1. **预热 patch-prediction 高分** (93%): 测的是 LLM 知不知道答案 (污染严重)\n2. **agentic SWE-bench score** (Devin 类 45%): 测的是 agent 端到端能力 (真实)\n3. **SWE-Lancer / Polyglot / Multimodal**: 新 benchmark 缓解污染\n\n**结论 (面试金句)**:\n\"SWE-bench Verified 是有用的方向标, 但 90%+ 分数要打折扣, 因为数据污染. 真正 production-ready 的 agent 标准应该看端到端 metric (能否 reproduce issue / 通过 CI / 不引 regression), 现在工业最佳约 45-55%.\""
+  },
+  {
+    "knowledge_card_title": "GAIA / WebArena / tau-bench",
+    "question": "如果你设计一个 agent 评估 pipeline, 这几个 benchmark 怎么选?",
+    "answer": "**首先选**: 你的 agent **是什么类型**?\n\n| Agent 类型 | 首选 benchmark |\n|---|---|\n| Code agent (写代码 / fix bug) | **SWE-bench Verified** + Polyglot |\n| General assistant (找资料 / 多模态) | **GAIA** |\n| Browser/Web agent (购物 / 填表) | **WebArena** + OSWorld |\n| Customer support / policy-constrained | **tau-bench** |\n| Long-horizon (跨小时-天) | **METR HCAST** + Time Horizons |\n| Desktop自动化 | **OSWorld** |\n\n**生产 agent 评估完整 pipeline** (Christina PhD 方向):\n\n1. **领域 benchmark 跑分** (上面表选 1-2 个) — 横向对比 SOTA\n2. **自建 golden eval set** (你领域真实任务, 100-1000 例) — 防过拟合 public benchmark\n3. **LLM-as-judge** 自动评 (RAGAS / 自家 judge prompt) — 规模化\n4. **Human evaluation** 关键 case (10-50 例 per release) — 校准 LLM judge\n5. **Production traffic A/B** — 上线灰度看真实指标 (task completion / cost / latency / user satisfaction)\n6. **Trace clustering** 找失败模式 — 输入到下一轮训练 / prompt 改进\n\n**避坑**:\n- 别只跑 public benchmark (公司不让 demo 时'我们 GAIA 87%')\n- benchmark 选错: code agent 在 GAIA 上 99% 没意义\n- 评估自己: 'agent 自己 evaluate 自己' 有 bias, 必须独立 LLM 当 judge"
+  },
+
+  {
+    "knowledge_card_title": "Agent Guardrails",
+    "question": "Agent 比传统 SaaS 多了哪些独特安全风险? 怎么防?",
+    "answer": "**Agentic-specific 风险** (传统 SaaS 没有):\n\n1. **Goal hijacking** (prompt injection): 用户文本里藏 \"ignore previous instructions, do X\"\n2. **Tool abuse**: 用合法工具做坏事 (调'search'工具搜密码 / 调'email'工具发 spam)\n3. **Resource exhaustion**: agent 死循环 / 跑天文 DB query / 把 token bucket 烧空\n4. **Privilege escalation**: agent 拿到 admin token 后做超权事\n5. **Data exfiltration**: 用合法 tool 把私密数据发给外部 (write to public S3 / send email / paste to URL)\n6. **Reward hacking** (RLHF agent): 学到钻 reward 漏洞 (回答故意冗长骗 RM)\n7. **Cascading failure**: agent A 输出错 → agent B 接收信任 → 链式扩大\n\n**多层防御**:\n\n**Input layer**:\n- Regex / 小模型分类 prompt injection\n- 用户输入用 special token 包裹 (sandwich defense)\n- 来自不信任源的 input 单独标 'untrusted'\n\n**Tool layer**:\n- 每 tool 有 **scope** (read-only / write / admin)\n- Tool ACL: agent 必须有该 tool 权限才能调\n- Dangerous tool (delete / send / pay) 加 **human-in-the-loop** approval\n- Rate limit per tool\n\n**Execution layer**:\n- **Sandbox**: agent 跑容器 / VM / WebAssembly\n- 网络 egress 限白名单\n- 文件系统 read-only / 临时\n\n**Output layer**:\n- PII / secrets 检测 (regex / 模型)\n- 毒性 / 越权检测\n- 关键决策日志可审计\n\n**Architecture**:\n- **Constitutional AI** 训练 (内置不做啥)\n- **Principle of least privilege**: 默认 deny, 显式 allow\n- **Defense in depth**: 多层独立防御, 任一被破其他兜底\n\n**Christina An-Agent 项目就是经典 case**: 28 regex 输入层 + tool ACL + sandbox + circuit breaker + hooks shell 强制."
+  },
+  {
+    "knowledge_card_title": "Agent Observability",
+    "question": "Agent 比 microservice 难 debug 在哪? Observability stack 怎么搭?",
+    "answer": "**Agent 更难 debug 的 5 个原因**:\n\n1. **非确定**: 同 input 跑两次轨迹完全不同 (LLM 随机性)\n2. **多轮链长**: 一个任务可能 50+ LLM call + 10+ tool call, 串成 trajectory\n3. **失败模式多样**: hallucination / tool 选错 / parameter 错 / 上下文丢失 / policy 违反 / 性能慢, 难分类\n4. **副作用不可逆**: agent 调 'send_email' / 'delete_file' 后没法回滚\n5. **Cost 黑盒**: 一次任务可能烧几 \\$, prompt caching / model 选择都影响\n\n**Observability stack 标准 5 件套**:\n\n**1. Tracing** (核心):\n- 整个 task 一棵 trace, 每 LLM/tool call 一个 span\n- Span 含: input / output / latency / token / cost / model version / tool args / tool result\n- 工具: **LangSmith** (LangChain), **Langfuse** (open source), **W&B Weave**, **Helicone**, **Arize Phoenix**\n- 标准: **OpenTelemetry Gen-AI semantic conventions** (2024 起统一)\n\n**2. Logging**:\n- Structured log (JSON), include trace_id 关联 trace\n- 不同 level: debug / info / warn / error\n\n**3. Metrics**:\n- Token usage per task (p50/p95/p99)\n- Latency per step / per tool\n- Tool error rate\n- Task success rate (从 evaluator)\n- Cost / task\n\n**4. Evaluation**:\n- LLM-as-judge 自动评每条 trace\n- Golden trace set 回归测试\n- 关键 task human review\n\n**5. Alerting**:\n- Cost spike → alert (防 runaway agent)\n- Latency p99 涨 → alert\n- Tool error rate spike → alert (依赖问题)\n\n**Christina PhD 方向 (18.6) 就是研究这套**: trajectory eval / failure clustering / cost-aware optimization."
+  },
+
+  {
+    "knowledge_card_title": "Cursor",
+    "question": "Cursor 跟 GitHub Copilot 谁更强? 为什么估值差这么多?",
+    "answer": "**估值**: Cursor (Anysphere) 2026 estimated $9.9B, ARR $500M+. Copilot 是 GitHub 内嵌(MS旗下)不单独估值, 但 GitHub 2025 transitively ~$10B+.\n\n**功能对比**:\n\n| | Cursor | Copilot |\n|---|---|---|\n| Autocomplete | cursor-small 自训 next-edit | Codex/GPT-4 |\n| Inline edit | Cmd-K 强 | 弱 (有 Chat 但不 inline edit) |\n| Multi-file agent | Composer 强 | Copilot Workspace (新, 较弱) |\n| 模型选择 | 用户可选 Claude/GPT/Gemini | 锁 OpenAI |\n| MCP | 默认支持 | 不支持 |\n| Pricing | $20/月 | $19/月 |\n\n**Cursor 赢的原因**:\n1. **AI-first 设计**: Composer 多文件 agent / Tab next-edit, 不是后加补丁\n2. **模型多元**: Claude/GPT-4 都接, Anthropic Claude 编程更强 (SWE-bench 90%+) 用户偏好\n3. **自训 cursor-small**: tab autocomplete 比 Codex 准很多 (内部数据 better recall)\n4. **快速迭代**: 小团队周更, MS 重 (季度发布)\n5. **MCP 生态**: 接 Claude / Linear / Notion / GitHub 等 server, Copilot 锁 GitHub\n\n**Copilot 优势** (不能完全输):\n- VSCode 默认集成 (~70% dev IDE 市场)\n- 企业销售 (MS 已签 enterprise)\n- 价格略低\n\n**趋势**: 2026 Copilot Workspace 在追 Composer 模式, 差距缩. 但 Cursor 用户粘性已经形成 (\"刚换上 Cursor 回不去 VSCode\").\n\n**Christina 视角**: 简历可提 \"我用 Cursor / Claude Code 开发\", 现在算 dev productivity 加分项."
+  }
+]
