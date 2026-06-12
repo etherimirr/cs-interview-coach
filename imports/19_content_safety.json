@@ -1,0 +1,162 @@
+[
+  {
+    "title": "内容审核 Pipeline",
+    "aliases": ["Content Moderation", "审核 pipeline", "Trust and Safety"],
+    "topic_ids": ["6.4", "12.3"],
+    "slots": {
+      "definition": [
+        { "text": "UGC (User Generated Content) 上传后, 经过**多阶段**模型 + 规则 + 人工判定是否合规. TikTok 类平台每天处理上亿条内容, 必须**秒级**审完.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**典型架构**:\n```\nUGC 上传 (视频/图/文)\n    ↓\n① 预处理 (转码 / 抽帧 / OCR / ASR)\n    ↓\n② 哈希去重 (MD5 完全去重 + perceptual hash 近似去重)\n    ↓\n③ 黑库检索 (已知违规内容直接 ban)\n    ↓\n④ ML 模型链 (并行多模型):\n   - 视觉分类 (色情/暴力/政治)\n   - OCR + 文本分类 (敏感词)\n   - ASR + 音频分类\n   - 多模态 VLM 综合判断\n    ↓\n⑤ 规则引擎 (业务规则 / 地区合规)\n    ↓\n⑥ 决策融合 (各 model 加权)\n    ↓\n⑦ 分流:\n   - 高置信度违规 → 直接 ban + 通知用户\n   - 高置信度合规 → pass + 入分发池\n   - 灰色地带 → 人工审核队列\n    ↓\n⑧ 人工审 + 反馈到训练集 (active learning)\n```", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**关键设计点**:\n- **召回 > 精度**: 漏判政治/色情代价远高于误杀\n- **实时性**: UGC 上传后秒级审完, 必须流式 + 异步队列\n- **多语言/全球化**: 99 语言模型 + 地区合规差异\n- **数据隔离**: 不同地区数据不能跨境流通 (GDPR/DSA)\n- **可解释**: 用户申诉时要能给出违规理由 (model + rule trace)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Perceptual Hash 去重",
+    "aliases": ["pHash", "感知哈希", "image fingerprint"],
+    "topic_ids": ["6.4", "15.1"],
+    "slots": {
+      "definition": [
+        { "text": "**MD5** 比特级完全一致才 match (改一像素就 miss). **Perceptual hash (pHash)** 基于图像内容生成短 hash, 视觉相似的图 hash 距离近 (Hamming distance), 能抓到改图/裁剪/水印的相似内容.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**pHash 算法 (DCT 版本)**:\n1. 图缩到 32×32 灰度\n2. DCT (Discrete Cosine Transform) 变换\n3. 取左上角 8×8 低频系数 (代表图整体结构)\n4. 比中位数生成 64-bit hash\n\n**对比**:\n- **aHash**: 平均值, 最快但鲁棒性弱\n- **dHash**: 相邻像素差, 平衡\n- **pHash**: DCT, 慢但最鲁棒 (抗旋转/缩放/水印)\n- **NeuralHash** (Apple): 学习版 hash, 抗对抗攻击\n\n**实战**: 比较 hash 用 Hamming distance, < 5 判定相似. 工业用 LSH (Locality-Sensitive Hashing) 建索引, 10 亿级库 ms 级查询.", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "内容审核黑库 / 抄袭检测 / 重复内容降权 / 数字水印识别. TikTok 用 video 的多帧 pHash 拼接做'video DNA'.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "实时 vs 异步审核",
+    "aliases": ["实时审核", "异步审核", "审核架构"],
+    "topic_ids": ["6.4", "8.3"],
+    "slots": {
+      "comparison": [
+        { "text": "**实时审核 (同步)**:\n- 上传 → 审完才返回成功\n- 用户体验差 (要等)\n- 优点: 不合规内容根本进不来\n- 适合: 直播 / 私信 (强阻断)\n\n**异步审核**:\n- 上传立刻返回成功, 后台审 (几秒-几分钟)\n- 用户体验好\n- 缺点: 短时间内不合规内容可能曝光\n- 实战: 先发布给上传者自己看 (shadow ban) + 限流, 审完才完全公开\n- 适合: 短视频 / 帖子 / 评论\n\n**TikTok 主流**: 异步 + **多级灰度曝光**:\n1. 上传 → 立刻只给上传者本人看\n2. 30s 后审完 → 给 50 个粉丝看 (小流量验证)\n3. 5 min 后无举报 → 进入推荐池\n4. 异常举报触发再审", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**异步架构**:\n```\nUpload API → Kafka → Audit Workers (N 个消费者)\n                  ↓\n           Audit Result → Redis (status) + DB (history)\n                  ↓\n           Push 给 feed system (合规) 或 ban service (违规)\n```\n\n关键: **状态追踪表** (content_id → status), 用户/feed 系统都查这表; 审完前是 pending, 审完后是 approved / rejected / pending_human.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "风控规则引擎",
+    "aliases": ["Rule Engine", "Drools", "Rete 算法", "风控规则"],
+    "topic_ids": ["6.4"],
+    "slots": {
+      "definition": [
+        { "text": "把'业务规则'(IF X AND Y THEN Z) 跟代码解耦, 让产品/运营改规则不用改代码. 内容安全场景: 不同地区/不同账户类型有不同规则, 规则要求快速迭代.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**实现方式**:\n\n**1. DSL + 解释器**:\n- 自定义语法 (YAML / JSON / 类 SQL)\n- 后端解析 + 执行\n- 简单但只支持有限谓词\n\n**2. Rete 算法** (Drools / Esper):\n- 把规则编译成网络 (alpha + beta node)\n- 共享 condition 评估, 多规则只评估一次\n- 增量更新 (新事实只过 affected node)\n- 适合: 几百-几千条规则, 高频事实流\n\n**3. Embedded scripting** (Lua / JavaScript / Groovy):\n- 业务规则写脚本, 后端 sandbox 执行\n- 最灵活但有 sandbox 安全风险\n\n**4. Decision Table**:\n- 表格化规则 (Excel-style), 适合保险/风控简单 if-else 矩阵", "cites": [] }
+      ],
+      "use_cases": [
+        { "text": "内容审核典型规则:\n- IF region=DE AND content_type=political THEN human_review (GDPR/DSA 严格)\n- IF account_age<7d AND post_count>10/h THEN rate_limit\n- IF user_in_blacklist THEN ban\n- IF report_count > 5 IN 1h THEN priority_human_review", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "ML 模型在线服务化",
+    "aliases": ["Model Serving", "TF Serving", "Triton", "BentoML", "在线推理"],
+    "topic_ids": ["20.4", "6.4"],
+    "slots": {
+      "definition": [
+        { "text": "训练完的模型怎么在生产高效服务. 关键指标: QPS / Latency (p50/p95/p99) / GPU 利用率 / 模型版本管理 / 灰度发布.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**主流方案**:\n\n**TF Serving** (Google):\n- 专门 TensorFlow 模型\n- gRPC + REST API\n- 支持多模型多版本 + 自动 batching\n- 老牌稳定\n\n**Triton Inference Server** (NVIDIA):\n- 多 framework (TF/PyTorch/ONNX/TensorRT/Python backend)\n- GPU 优化最强 (dynamic batching + concurrent model execution)\n- 工业大厂首选 GPU 推理\n\n**BentoML**:\n- Python-first, 开发体验友好\n- 适合中小规模, 灵活但性能不如 Triton\n\n**KServe** (Kubernetes 原生):\n- 标准化 InferenceService CRD\n- 自动 scaling + canary deployment\n- 多 framework 通过 ModelServer 抽象\n\n**TorchServe** (Meta):\n- PyTorch 官方, 简单易用\n- 功能不如 Triton 全", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**面试关键点**:\n1. **Dynamic Batching**: 多个 request 拼一个 batch, 提 GPU 利用率\n2. **Model Warm-up**: 启动后跑几次假请求避免首次推理 latency 高 (CUDA kernel 编译/cache)\n3. **多模型并发**: Triton 同 GPU 跑多模型 (不同 model 占 GPU 不同时间)\n4. **版本管理**: 一个 model 多版本共存, A/B test\n5. **灰度发布**: 1% → 10% → 100% 流量, 看监控指标无回退再放量\n6. **降级**: 模型挂了走兜底 (规则 / 缓存 / 上一版本)", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "JVM 与 GC",
+    "aliases": ["JVM", "Java GC", "G1", "CMS", "ZGC"],
+    "topic_ids": ["7.3"],
+    "slots": {
+      "definition": [
+        { "text": "Java 程序跑在 JVM 上, **GC (Garbage Collector)** 自动回收无引用对象的内存. 不同 GC 算法在吞吐 vs 延迟之间不同权衡.", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**JVM 内存区**:\n- **堆 (Heap)**: 对象 (年轻代 Eden+S0+S1 + 老年代 + 元空间)\n- **栈 (Stack)**: 每线程独立, 局部变量 + 方法调用\n- **方法区**: 类元数据\n- **直接内存**: NIO 用\n\n**GC 算法**:\n\n**Serial GC**: 单线程, 适合小堆/客户端\n\n**Parallel GC** (默认 Java 8): 多线程, 高吞吐, 停顿明显\n\n**CMS** (Concurrent Mark Sweep): 已废弃 (Java 9 起 deprecated), 并发标记减少停顿但有碎片\n\n**G1 GC** (Java 9+ 默认): 分 region, 优先回收垃圾多的; 软实时, 停顿可预测\n\n**ZGC** (Java 11+ 实验, 15 GA): **停顿 < 1ms**, 适合大堆 (TB 级); 染色指针 + 读屏障\n\n**Shenandoah** (Red Hat): 类似 ZGC, 转发指针实现\n\n**实战**: 后端服务首选 G1 (大多数情况); 大堆低延迟选 ZGC; 推荐改 ZGC: TB 级堆 + 严格 SLA 要求", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**面试经典问题**:\n1. **Minor GC vs Full GC**: Minor 只 GC 年轻代 (fast), Full 全堆 GC (慢, 几百 ms+)\n2. **对象什么时候进老年代**: 经过 N 次 (默认 15) Minor GC 还活着, 或一次分配很大\n3. **STW (Stop The World)**: GC 时所有用户线程暂停, 影响延迟\n4. **OOM 类型**: heap OOM / metaspace OOM / 直接内存 OOM\n5. **怎么排查**: jstat / jmap / jstack / GC log / VisualVM / Arthas", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Go 并发与 GMP",
+    "aliases": ["Go goroutine", "channel", "GMP 模型", "Golang 并发"],
+    "topic_ids": ["7.3"],
+    "slots": {
+      "definition": [
+        { "text": "Go 用 **goroutine** (轻量级线程, 用户态) + **channel** (通信) 做并发. 调度走 **GMP 模型** (G/M/P), 几 KB 栈 + 数百万 goroutine 可同时存在.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**GMP 模型**:\n- **G (Goroutine)**: 用户协程, 几 KB 栈 (动态扩展)\n- **M (Machine)**: OS 线程, 真正干活的\n- **P (Processor)**: 逻辑处理器 (GOMAXPROCS, 默认 = CPU 核心数), G 跑在 P 上, P 绑定 M\n\n**调度**:\n- G 创建后放本地队列 (P 自己的)\n- M 从绑定 P 拿 G 执行\n- 本地空了 → 去全局队列 / 偷其他 P 的 (work stealing)\n- G 阻塞 (系统调用) → M 解绑 P, 其他 M 接管 P 继续跑别的 G\n\n**vs Java 线程**:\n- Java 线程 = OS 线程, 创建贵 (MB 栈), 切换贵 (μs 级)\n- Goroutine = 用户态, 创建几 ns, 切换 100ns 级\n- 单进程 100w+ goroutine 常见, Java 线程 1w 已是上限", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**面试经典**:\n\n1. **channel 类型**: 无缓冲 (同步) vs 有缓冲 (异步); close 后再发 panic, 但可继续 recv (得 zero value)\n\n2. **select**: 多 channel 监听, 类似 epoll; 默认 default 分支防阻塞\n\n3. **sync.WaitGroup**: 等多个 goroutine 完成. Add → Done → Wait\n\n4. **sync.Mutex / sync.RWMutex**: 互斥锁 / 读写锁. **defer mu.Unlock()** 防忘解锁\n\n5. **context**: 传递取消信号 + deadline + value. 服务端必备\n\n6. **GC**: 三色标记 + 写屏障, 并发 GC, 停顿 < 1ms; 1.18+ 默认\n\n7. **Race detector**: `go run -race`, 抓数据竞争 bug 神器", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "数据隔离与多租户",
+    "aliases": ["数据隔离", "Data Isolation", "Multi-tenancy"],
+    "topic_ids": ["6.2", "10.4"],
+    "slots": {
+      "definition": [
+        { "text": "**多租户 / 多地区** 场景需要保证不同租户/地区的数据严格隔离, 防止数据泄露 + 满足合规 (GDPR/DSA/数据本地化).", "cites": [] }
+      ],
+      "comparison": [
+        { "text": "**3 种隔离级别**:\n\n**Shared schema** (所有租户同表, tenant_id 列区分):\n- 成本最低\n- 隔离最弱 (代码 bug 漏 tenant_id 就泄露)\n- 适合: SaaS 小客户\n\n**Shared DB + 独立 schema**:\n- 同 DB 实例, 每租户一个 schema\n- 隔离中等 (DB 用户权限可控)\n- 备份/恢复独立\n\n**独立 DB / 独立集群**:\n- 一租户一 DB 实例\n- 隔离最强, 合规友好\n- 成本最高\n- 适合: 大客户 / 强合规 (银行/医疗)\n\n**TikTok 实战**: 按区域 (美国/欧洲/中国大陆) 完全独立集群 + 跨境数据不流动 (满足 DSA / 数据安全法).", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**实现细节**:\n\n1. **代码层 tenant_id 强制**: ORM middleware 自动加 WHERE tenant_id = ?, 漏写报错\n\n2. **DB 行级安全 (Row-Level Security)**: PostgreSQL RLS / MySQL view-based, 数据库层强制\n\n3. **加密隔离**: 不同租户用不同 KMS key, 即使数据混存也读不了\n\n4. **审计**: 所有跨租户访问 (admin 工具) 必须 log + 告警\n\n5. **测试**: tenant_isolation_test 必须有, 模拟 tenant A 偷读 tenant B 直接 fail", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "系统解耦",
+    "aliases": ["Decoupling", "事件驱动", "异步解耦"],
+    "topic_ids": ["6.2"],
+    "slots": {
+      "definition": [
+        { "text": "微服务/单体内不同模块**不直接调用**, 而是通过抽象层 (消息队列/事件/接口) 通信. 改一边不用动另一边, 故障隔离, 独立伸缩.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**4 种解耦方式**:\n\n**1. Interface (接口) 解耦**:\n- 依赖抽象不依赖实现 (DIP 原则)\n- 例: Repository 接口隔离 ORM\n- 同步, 调用方知道被调方存在 (只是不知具体实现)\n\n**2. RPC + 服务发现解耦**:\n- A 调 B 通过 service discovery 找 endpoint\n- B 扩缩容 A 不感知\n- 仍是同步, 强依赖 B 在线\n\n**3. 消息队列解耦** (最强):\n- A 写 Kafka topic, B 消费\n- A 不知道有多少 B 在订阅\n- B 挂了 A 还能继续 (消息堆积在 MQ)\n- 异步, 写性能高\n- 缺点: 一致性弱 (eventual consistency)\n\n**4. 事件驱动 (Event Sourcing)**:\n- 所有状态变更是 event\n- 多个消费者各自维护自己的 view\n- 内容审核可这样: audit_completed event → feed 系统 + 推荐系统 + 数据分析 各自消费\n\n**典型场景: 审核完成事件**:\n```\nAudit Service → Kafka 'audit.completed' →\n  - Feed Service (合规则进 feed)\n  - Notification Service (违规通知用户)\n  - Analytics (统计审核率)\n  - ML Training Pipeline (积累标注数据)\n```\nAudit Service 不知道谁在订阅, 加新订阅者也不动 Audit Service.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Active Learning 在审核中",
+    "aliases": ["主动学习", "审核样本回流", "human-in-the-loop"],
+    "topic_ids": ["12.3", "18.6"],
+    "slots": {
+      "definition": [
+        { "text": "模型对**不确定**的样本主动求标注 (送人审), 优化模型迭代效率. 不是所有数据都标注, 只标'模型最学不到的'.", "cites": [] }
+      ],
+      "mechanism": [
+        { "text": "**典型策略**:\n\n**1. Uncertainty sampling**: 模型 confidence 接近 0.5 的样本送人审 (最不确定)\n\n**2. Margin sampling**: 多分类时, 第一类和第二类概率差最小的样本\n\n**3. Query by committee**: 多模型投票, 分歧大的样本\n\n**4. Diversity sampling**: 在 feature space 选有代表性的样本 (覆盖盲区)\n\n**内容审核闭环**:\n```\nModel 预测 → 高/低置信度直接判定\n         → 中置信度 (灰色地带) → 人工审\n                              ↓\n                       人工标注结果\n                              ↓\n                       回流到训练集\n                              ↓\n                       下一轮 re-train\n```\n\n**指标**:\n- **Annotation efficiency**: 同样 1000 个标注, active learning 模型涨多少 vs 随机标注\n- **Bad case capture rate**: 人审 catch 到的违规中, 模型本来错判的比例\n- **Drift detection**: 新型违规 (擦边 / 对抗样本) 多久能 cover 进训练集", "cites": [] }
+      ]
+    }
+  }
+]

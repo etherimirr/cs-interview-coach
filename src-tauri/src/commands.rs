@@ -1,6 +1,8 @@
 use chrono::Utc;
+use std::collections::HashSet;
 use tauri::State;
 
+use crate::jobs::Job;
 use crate::models::{Grade, KnowledgeCard, ReviewCard, Slots};
 use crate::srs;
 use crate::state::AppState;
@@ -111,6 +113,70 @@ pub fn list_reviews_for_card(
 #[tauri::command]
 pub fn due_reviews(state: State<'_, AppState>) -> CmdResult<Vec<ReviewCard>> {
     state.store.due_reviews(Utc::now()).map_err(err)
+}
+
+// ---------- Jobs ----------
+
+#[tauri::command]
+pub fn list_jobs(state: State<'_, AppState>) -> CmdResult<Vec<Job>> {
+    Ok(state.jobs.jobs.clone())
+}
+
+#[tauri::command]
+pub fn get_job(id: String, state: State<'_, AppState>) -> CmdResult<Option<Job>> {
+    Ok(state.jobs.jobs.iter().find(|j| j.id == id).cloned())
+}
+
+/// Return all KnowledgeCards relevant to a Job, which is the union of:
+///   1) every card whose topic_ids intersects job.relevant_topic_ids
+///   2) every card whose title or aliases matches a job.cherry_picked_cards entry
+///   3) every card whose title or aliases matches a job.my_anchors entry
+/// Returned cards are deduplicated by id; cards may carry a "match_reason"
+/// classification — but for M1 we return the raw KnowledgeCard list and let the
+/// frontend group by (cherry / anchor / topic) on its own using the job spec.
+#[tauri::command]
+pub fn list_cards_for_job(
+    id: String,
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<KnowledgeCard>> {
+    let job = state.jobs.jobs.iter().find(|j| j.id == id).cloned()
+        .ok_or_else(|| format!("job not found: {id}"))?;
+    let cards = state.store.list_cards().map_err(err)?;
+
+    let wanted_topics: HashSet<String> = job.relevant_topic_ids.iter().cloned().collect();
+    let cherry: HashSet<String> = job.cherry_picked_cards.iter()
+        .map(|s| s.trim().to_lowercase()).collect();
+    let anchors: HashSet<String> = job.my_anchors.iter()
+        .map(|s| s.trim().to_lowercase()).collect();
+
+    let mut matched: Vec<KnowledgeCard> = cards.into_iter().filter(|c| {
+        // 1) topic intersection
+        if c.topic_ids.iter().any(|t| wanted_topics.contains(t)) { return true; }
+        // 2) title in cherry / anchors
+        let title_norm = c.title.trim().to_lowercase();
+        if cherry.contains(&title_norm) || anchors.contains(&title_norm) {
+            return true;
+        }
+        // 3) any alias in cherry / anchors
+        for a in &c.aliases {
+            let an = a.trim().to_lowercase();
+            if cherry.contains(&an) || anchors.contains(&an) { return true; }
+        }
+        false
+    }).collect();
+
+    // Sort: cherry-picked > anchors > by title
+    matched.sort_by(|a, b| {
+        let a_cherry = cherry.contains(&a.title.trim().to_lowercase());
+        let b_cherry = cherry.contains(&b.title.trim().to_lowercase());
+        match (a_cherry, b_cherry) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.title.cmp(&b.title),
+        }
+    });
+
+    Ok(matched)
 }
 
 #[tauri::command]

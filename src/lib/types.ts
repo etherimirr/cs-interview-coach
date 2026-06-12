@@ -90,6 +90,22 @@ export interface Suggestion {
   card_id: string;
 }
 
+// Jobs (seed/jobs.yaml)
+export interface Job {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  level: string;
+  track: string;
+  jd: string;
+  hard_requirements: string[];
+  relevant_topic_ids: string[];
+  cherry_picked_cards: string[];
+  my_anchors: string[];
+  notes: string;
+}
+
 // Taxonomy — id can be int or float-like ("1.1") from YAML
 export interface SubTopic {
   id: number | string;

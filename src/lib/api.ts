@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  Job,
   KnowledgeCard,
   ReviewCard,
   Slots,
@@ -36,4 +37,10 @@ export const api = {
   dueReviews: () => invoke<ReviewCard[]>('due_reviews'),
   rateReview: (id: string, grade: Grade) =>
     invoke<ReviewCard>('rate_review', { id, grade }),
+
+  // Jobs
+  listJobs: () => invoke<Job[]>('list_jobs'),
+  getJob: (id: string) => invoke<Job | null>('get_job', { id }),
+  listCardsForJob: (id: string) =>
+    invoke<KnowledgeCard[]>('list_cards_for_job', { id }),
 };

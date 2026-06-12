@@ -11,6 +11,7 @@
     { href: '/map',    label: 'Map',    key: 'map'    },
     { href: '/tree',   label: 'Tree',   key: 'tree'   },
     { href: '/radial', label: 'Radial', key: 'radial' },
+    { href: '/jobs',   label: 'Jobs',   key: 'jobs'   },
     { href: '/review', label: 'Review', key: 'review' },
   ];
 

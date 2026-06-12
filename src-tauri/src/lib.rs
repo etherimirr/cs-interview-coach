@@ -1,5 +1,6 @@
 mod commands;
 mod import;
+mod jobs;
 mod models;
 mod srs;
 mod state;
@@ -60,11 +61,19 @@ pub fn run() {
             let data_dir = handle.path().app_data_dir()
                 .expect("resolve app_data_dir");
 
-            let taxonomy_path = resolve_taxonomy_path();
+            let taxonomy_path = resolve_seed_file("taxonomy.yaml");
             let tax = taxonomy::load_from_file(&taxonomy_path)
                 .expect("load seed taxonomy");
 
-            let app_state = AppState::new(data_dir, tax)
+            let jobs_path = resolve_seed_file("jobs.yaml");
+            let jobs_file = if jobs_path.exists() {
+                jobs::load_from_file(&jobs_path).expect("load seed jobs")
+            } else {
+                // Seed jobs.yaml is optional — App still boots without it.
+                jobs::JobsFile { version: "0.0".into(), jobs: Vec::new() }
+            };
+
+            let app_state = AppState::new(data_dir, tax, jobs_file)
                 .expect("init AppState");
             app.manage(app_state);
             Ok(())
@@ -82,19 +91,22 @@ pub fn run() {
             commands::list_reviews_for_card,
             commands::due_reviews,
             commands::rate_review,
+            commands::list_jobs,
+            commands::get_job,
+            commands::list_cards_for_job,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-// In dev: walk up from CWD to find seed/taxonomy.yaml.
+// In dev: walk up from CWD to find seed/<file>.
 // M2 TODO: bundle as Tauri resource for packaged builds.
-fn resolve_taxonomy_path() -> std::path::PathBuf {
+fn resolve_seed_file(name: &str) -> std::path::PathBuf {
     let mut dir = std::env::current_dir().expect("cwd");
     for _ in 0..5 {
-        let candidate = dir.join("seed").join("taxonomy.yaml");
+        let candidate = dir.join("seed").join(name);
         if candidate.exists() { return candidate; }
         if !dir.pop() { break; }
     }
-    std::path::PathBuf::from("../seed/taxonomy.yaml")
+    std::path::PathBuf::from(format!("../seed/{name}"))
 }

@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::jobs::JobsFile;
 use crate::store::Store;
 use crate::suggest::Suggester;
 use crate::taxonomy::Taxonomy;
@@ -10,11 +11,12 @@ pub struct AppState {
     pub store: Arc<Store>,
     pub suggester: Arc<Suggester>,
     pub taxonomy: Arc<Taxonomy>,
+    pub jobs: Arc<JobsFile>,
     pub data_dir: PathBuf,
 }
 
 impl AppState {
-    pub fn new(data_dir: PathBuf, taxonomy: Taxonomy) -> Result<Self> {
+    pub fn new(data_dir: PathBuf, taxonomy: Taxonomy, jobs: JobsFile) -> Result<Self> {
         std::fs::create_dir_all(&data_dir)?;
         let db_path = data_dir.join("coach.redb");
         let store = Arc::new(Store::open(&db_path)?);
@@ -28,6 +30,7 @@ impl AppState {
             store,
             suggester,
             taxonomy: Arc::new(taxonomy),
+            jobs: Arc::new(jobs),
             data_dir,
         })
     }

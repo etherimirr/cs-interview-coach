@@ -1,0 +1,183 @@
+# 岗位库 — 每个岗位绑定相关 topic_ids 和 cherry-pick 的卡片标题.
+# App 中 Jobs 视图按 job_id 过滤知识卡 + 复习卡, 帮 Christina 针对性准备面试.
+#
+# Schema:
+#   - id: 短 slug (URL 友好)
+#   - title: 岗位标题
+#   - company: 公司
+#   - location: 工作地点
+#   - level: intern / 校招 / 转正
+#   - track: backend / mle / agent / sde_general / ...
+#   - jd: 一段话 JD 原文 (简化)
+#   - hard_requirements: 硬性门槛
+#   - relevant_topic_ids: 列表 - 该岗位下相关的所有 sub-topic IDs (自动拉这些 topic 下所有卡)
+#   - cherry_picked_cards: 列表 - 一定要看的具体卡片 title (即使 topic 没列也单独加)
+#   - my_anchors: 列表 - 我的项目/经验里跟这岗位匹配度高的卡 title
+#   - notes: markdown 文本 - 准备策略
+
+version: "0.1"
+
+jobs:
+  - id: byte-tns-train
+    title: 大模型训练系统与算法优化实习生
+    company: 字节跳动 (TikTok TnS)
+    location: ""
+    level: 实习 (2027 届可转正)
+    track: ai_infra
+    jd: |
+      字节 AI infra 核心岗 — 主攻**千亿 VLM 训练 + Agent RL + 训练推理优化**.
+      服务 TikTok 全球内容审核业务. 转正名额稳定, 技术含金量极高.
+    hard_requirements:
+      - 实习时长 (本科 1 年 / 硕博 6 个月)
+      - C++/Python
+      - PyTorch / Megatron / DeepSpeed
+      - 分布式训练经验
+    relevant_topic_ids:
+      - "20.1"   # 训练框架 (DDP/FSDP/Megatron/ZeRO etc)
+      - "20.2"   # 微调 (LoRA/QLoRA)
+      - "20.3"   # 压缩 (量化/蒸馏)
+      - "20.4"   # 推理引擎
+      - "18.1"   # Transformer 内核
+      - "18.2"   # 预训练
+      - "18.3"   # 后训练 (RLHF/DPO)
+      - "18.5"   # Agent
+      - "18.6"   # Agent 评估与可观测性
+      - "13.1"   # DL 基础
+      - "13.4"   # Attention / Transformer
+      - "17.2"   # 视觉语言模型 VLM
+    cherry_picked_cards:
+      - "字节 TikTok TnS 大模型训练系统面试套路"
+      - "DP / TP / PP 三维并行"
+      - "千亿模型训练 5 大问题"
+      - "训练-推理一致性"
+      - "Agent RL 训练稳定性"
+      - "大模型训练不收敛排查"
+      - "标准化评测集构建"
+      - "高并发推理训练系统适配"
+      - "Megatron 张量并行 (TP)"
+      - "Megatron 流水线并行 (PP)"
+    my_anchors:
+      - "iQIYI - Diffusion Pipeline"             # FP16 精度 / latency 30% / dynamic batch / LoRA mgmt
+      - "Arklex × Walmart - GED Chatbot Eval"   # Agent eval Harness / 离在线一致性 / reward
+      - "An-Agent (微信多 Agent 助手)"            # 多 agent / sleep cycle GC / 28 regex 防御
+    notes: |
+      ## 准备策略
+      1. **必杀题**: 大模型训练 6 专项 (DP/TP/PP/ZeRO/Megatron/千亿问题/训推一致/Agent RL 稳定)
+      2. **现场题**: 不收敛排查五步法 + 标准化评测集 + 高并发推理适配
+      3. **简历改写**: 套用面试套路卡里的 5 行专业技能模板, iQIYI 项目改写突出训练框架 / 张量切分 / ZeRO
+      4. **手撕**: LeetCode 中等 30 道 + 张量切分 / 数据批处理 / 通信优化简单实现
+      5. **博士加试**: MoE 负载均衡 / 稀疏 Attention / 剪枝蒸馏量化 (有兴趣的话补)
+
+  - id: byte-tiktok-content-safety-backend
+    title: 后端开发实习生 - TikTok 内容安全平台
+    company: 字节跳动 (国际化内容安全平台)
+    location: ""
+    level: 实习 (2027 届可转正)
+    track: sde_backend
+    jd: |
+      国际化内容安全平台团队致力于为字节跳动国际化产品 (TikTok 等) 维护安全可信赖环境.
+      通过开发、迭代 ML 模型和信息系统**更早、更快发掘 / 监控 / 响应风险**, 以 AI 技术支持业务发展.
+
+      职责:
+      1. 与算法团队密切合作, 参与架构设计和开发, 提高算法应用创建和评估的效率
+      2. 与业务团队合作, 优化算法应用的集成计划
+      3. 与 MLOps 团队合作, 制定代码规范、测试规范
+      4. 攻克**高并发、高可靠性、高可扩展性、数据隔离、系统解耦**等技术难关
+      5. 参与各专项技术调研, 新技术引入
+      6. 参与机器学习与异构计算系统研发
+    hard_requirements:
+      - "2027 届本科及以上学历在读, 计算机/软件工程优先"
+      - "精通至少一门: Java / C / C++ / PHP / Python / Go"
+      - "扎实的数据结构 / 算法 / 操作系统"
+      - "优秀的逻辑分析能力, 业务逻辑合理抽象拆分"
+      - "强烈求知欲, 学习沟通能力"
+    relevant_topic_ids:
+      # CS 基础 (必考)
+      - "1.1"   # 线性结构
+      - "1.2"   # 树
+      - "1.3"   # 图
+      - "1.4"   # 哈希
+      - "1.5"   # 算法范式
+      - "2.1"   # 进程线程
+      - "2.2"   # 同步锁
+      - "2.3"   # 虚拟内存
+      - "2.4"   # 文件IO / IO 多路复用
+      - "3.1"   # TCP/IP
+      - "3.2"   # HTTP/HTTPS
+      - "3.4"   # Socket / epoll
+      - "4.1"   # SQL
+      - "4.2"   # 索引 (B+ 树 / InnoDB / Redis 数据结构)
+      - "4.3"   # 事务 (ACID / MVCC / 隔离级别)
+      - "4.5"   # 分布式数据库 (CAP / Raft)
+      - "4.6"   # Redis / 向量数据库
+      # 工程能力 (核心)
+      - "6.2"   # 微服务 / RPC vs REST
+      - "6.3"   # 高并发 (缓存击穿 / 限流 / 熔断)
+      - "6.4"   # 经典系统设计
+      - "6.5"   # 可观测性
+      - "7.1"   # Python
+      - "7.2"   # C++
+      - "8.3"   # Kafka / 消息队列
+      - "9.1"   # Docker
+      - "9.2"   # K8s
+      - "10.2"  # Web 安全
+      - "10.3"  # JWT / OAuth
+      # ML / 内容审核业务
+      - "12.3"  # ML 评估 (审核场景准确率/召回)
+      - "15.2"  # 目标检测 (敏感内容)
+      - "15.3"  # 分割
+      - "17.2"  # VLM (多模态审核)
+      - "20.4"  # 推理引擎
+    cherry_picked_cards:
+      - "TCP 三次握手"
+      - "TCP 四次挥手"
+      - "IO 多路复用"
+      - "线程同步"
+      - "MVCC"
+      - "InnoDB 索引"
+      - "Redis 数据结构"
+      - "Redis 持久化"
+      - "缓存击穿/穿透/雪崩"
+      - "限流算法"
+      - "熔断与降级"
+      - "Raft 共识算法"
+      - "CAP 定理"
+      - "Kafka 核心"
+      - "Docker 与容器"
+      - "Kubernetes 核心"
+      - "JWT vs Session"
+      - "经典系统设计：feed 流"
+      - "负载均衡"
+      - "服务发现"
+      - "RPC vs REST"
+      - "长连接 vs 短连接"
+      - "粘包与拆包"
+    my_anchors:
+      - "LuxRent Microservices"                  # 微服务架构 / MySQL+MongoDB / ECS+ECR / 一致性
+      - "UAES OTA - 差分升级"                    # C 实现 / 系统设计 / MD5 校验 / rollback
+      - "AI Code Review System"                  # 多语言 / 4 层架构 / 45 测试 / CI
+      - "Johnson & Johnson Medical - CDO MT"     # Python+SQL pipeline / 2.5× latency
+      - "SJTU Network Center - LLM Platform"     # Django + 异步 + 99.9% / 40K 用户
+    notes: |
+      ## 跟前一个 (TnS 训练系统) 岗位的关键差别
+      这个岗**纯后端 SDE**, 不是 ML 工程. 重点考:
+      - **CS 基础硬实力** (数据结构/算法/OS/Network/DB) — TnS 那个是大模型训练系统
+      - **高并发 + 高可靠后端架构** (限流/熔断/CAP/Raft/Kafka/微服务) — TnS 那个是分布式训练
+      - **跟算法/MLOps 团队协作** — TnS 那个是写训练系统本身
+      - **内容审核业务理解** — TnS 那个是 TnS 内核业务
+
+      ## 准备策略
+      1. **手撕**: LeetCode 中等 50 题打底 + 多线程 (生产消费/读写锁/线程池实现)
+      2. **CS 八股**: TCP/HTTP/MVCC/B+树/索引/Redis/缓存/锁 必背
+      3. **系统设计**: 经典 feed / 短链 / 秒杀 / IM 至少能讲出框架
+      4. **内容审核业务专题** (新增, 见下面卡): 审核 pipeline / 风控规则 / 实时 vs 异步 / 模型集成
+      5. **简历改写**: 突出 LuxRent 微服务架构 + UAES OTA 系统设计 + Code Review 工程能力
+      6. **MLOps 协作**: 知道训练-推理一致 / Feature Store / A/B test 这些跟算法团队对接的概念
+
+      ## 内容审核业务特殊点
+      - **多模态** (图/视频/音/文) — 不同 model pipeline
+      - **实时性要求高** (UGC 上传后秒级审完)
+      - **召回率优先于精度** (漏判政治/色情/暴力代价高)
+      - **多语言 / 全球化** — 地区合规差异
+      - **人工 + 机器 hybrid** — 模型先过, 高 risk 转人工
+      - **隐私敏感** — 数据隔离 / 区域合规 (GDPR / DSA)
