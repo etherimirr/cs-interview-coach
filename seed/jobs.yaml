@@ -1,5 +1,5 @@
 # 岗位库 — 每个岗位绑定相关 topic_ids 和 cherry-pick 的卡片标题.
-# App 中 Jobs 视图按 job_id 过滤知识卡 + 复习卡, 帮 Christina 针对性准备面试.
+# Jobs view filters knowledge cards + review cards by job_id.
 #
 # Schema:
 #   - id: 短 slug (URL 友好)

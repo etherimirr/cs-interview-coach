@@ -11,7 +11,7 @@ Drop JSON files here and bulk-import via:
 ```
 
 仓库里已有 10 个 JSON 文件（v1-v4 批次共 139 张知识卡 + 143 张复习卡），来源：
-- `01_pdd_suji.json` / `02_bytedance_finance.json` — 用豆包整理的算法岗笔试/面试要点
+- `01_*.json` / `02_*.json` — algorithm-track concept notes compiled from public study material
 - `03-10_*.json` — 从公开 GitHub repo (LLM Interview / RecSys / DL Awesome / ML Sysdesign 等) 提炼
 
 直接 `import` 即可重建知识库。

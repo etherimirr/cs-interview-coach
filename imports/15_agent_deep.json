@@ -302,7 +302,7 @@
         { "text": "**Princeton 2023 提出, OpenAI 2024 verified 子集**: 2,294 个真实 GitHub issue+PR (Python repos), agent 给出 patch, 用原 PR 测试套件验证.\n\n**SWE-bench Verified** = 500 题人工核验子集, 排除歧义/不可解题, 是当前标准.", "cites": [] }
       ],
       "interview_points": [
-        { "text": "**2026 Q1 leaderboard**:\n- Claude Mythos Preview: **93.9%**\n- GPT-5.3 Codex: 85%\n- Claude Opus 4.5: 80.9%\n- Devin 2.0: 45.8%\n\n**注意**: OpenAI internal audit 发现 frontier model 能 verbatim 复现某些 gold patch (训练数据污染), 部分分数有水分.", "cites": [{"source_id": "rapidclaw-2026", "locator": "benchmarks"}] }
+        { "text": "**2026 Q1 leaderboard**:\n- Claude Mythos Preview: **93.9%**\n- GPT-5.3 Codex: 85%\n- Claude Opus 4.5: 80.9%\n- Devin 2.0: 45.8%\n\n**注意**: OpenAI internal audit 发现 frontier model 能 verbatim 复现某些 gold patch (训练数据污染), 部分分数有水分.", "cites": [{"source_id": "industry-algo-notes-3", "locator": "benchmarks"}] }
       ],
       "pitfalls": [
         { "text": "**SWE-bench 局限**:\n- 只 Python, 不覆盖 JS/Java/Rust\n- 全是 bug fix, 没 feature dev / refactor / 架构\n- Repo 选自 12 热门项目, 不代表 enterprise codebase\n- 单文件改动占多 (multi-file agent 优势难显)\n\n**新 benchmark**: SWE-bench Multimodal / SWE-Lancer (有钱赏) / Polyglot (多语言).", "cites": [] }
@@ -316,7 +316,7 @@
     "topic_ids": ["18.6"],
     "slots": {
       "definition": [
-        { "text": "三个 agent 综合 benchmark:\n\n**GAIA** (Meta 2023): 466 个真实助手任务 (查资料/计算/多模态), 人类轻松 92%, GPT-4 base 15%, Claude Opus 4.7 87.6%.\n\n**WebArena** (CMU 2024): 真实网站环境 (购物/Gitlab/Reddit/CMS) 多步任务. Claude Mythos Preview 68.7%.\n\n**tau-bench** (Sierra 2024): customer service agent, 有 policy 约束, evaluator 是 user simulator. 更贴生产 agent.", "cites": [{"source_id": "rapidclaw-2026", "locator": "benchmarks"}] }
+        { "text": "三个 agent 综合 benchmark:\n\n**GAIA** (Meta 2023): 466 个真实助手任务 (查资料/计算/多模态), 人类轻松 92%, GPT-4 base 15%, Claude Opus 4.7 87.6%.\n\n**WebArena** (CMU 2024): 真实网站环境 (购物/Gitlab/Reddit/CMS) 多步任务. Claude Mythos Preview 68.7%.\n\n**tau-bench** (Sierra 2024): customer service agent, 有 policy 约束, evaluator 是 user simulator. 更贴生产 agent.", "cites": [{"source_id": "industry-algo-notes-3", "locator": "benchmarks"}] }
       ],
       "comparison": [
         { "text": "覆盖维度:\n- **GAIA**: general assistant (查资料 + 推理 + 工具)\n- **WebArena**: 浏览器任务 (UI 交互 + 长 horizon)\n- **tau-bench**: 受约束的客服 (policy adherence + 用户模拟)\n- **SWE-bench**: 代码 (bug fix)\n- **OSWorld**: 桌面 (Claude Computer Use 战场)\n- **METR HCAST**: 长 horizon (任务时长上限测试)\n\nChristina PhD 方向 18.6 — 其实就是研究这一堆的 evaluation methodology.", "cites": [] }

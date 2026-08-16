@@ -1,0 +1,215 @@
+[
+  {
+    "title": "TCP vs UDP",
+    "aliases": ["TCP UDP 对比", "tcp vs udp"],
+    "topic_ids": ["3.1"],
+    "slots": {
+      "comparison": [
+        { "text": "**TCP**: 面向连接, 可靠传输, 字节流, 有 ACK / 重传 / 流控 / 拥塞控制. 代价: 时延高 + 开销大. 适合 Web/RPC/DB/文件传输.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q1"}] },
+        { "text": "**UDP**: 无连接, 不保证可靠, 报文头小, 延迟低. 适合实时音视频 / 游戏状态 / DNS / sensor telemetry.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q1"}] }
+      ],
+      "interview_points": [
+        { "text": "**面试模板**: \"TCP 提供可靠按序的字节流传输, 适合对正确性要求高的场景 (RPC/HTTP/DB); UDP 是无连接低延迟报文传输, 适合实时性优先允许少量丢包的场景 (视频流/状态上报). 自动驾驶/车队系统: 控制指令配置下发优先 TCP, 高频状态广播音视频考虑 UDP.\"", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q1 模板"}] }
+      ]
+    }
+  },
+  {
+    "title": "粘包与拆包",
+    "aliases": ["TCP 粘包", "TCP 拆包", "sticky packet"],
+    "topic_ids": ["3.1", "3.4"],
+    "slots": {
+      "definition": [
+        { "text": "**TCP 是字节流, 不是消息边界协议**. 发两次 'hello' 和 'world' 接收端可能:\n- 一次收 'helloworld' → 粘包\n- 收 'hel' + 'loworld' → 拆包", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q5"}] }
+      ],
+      "mechanism": [
+        { "text": "**3 种解法** (应用层自定义协议边界):\n1. **固定长度**: 每条消息定长. 简单但浪费空间\n2. **分隔符**: \\n / 特殊字符. 适合文本协议 (HTTP header / Redis)\n3. **消息头 + body 长度** (最常用): header 写 body_len, 接收先读固定 header 再按 len 读 body. RPC/IM/游戏/自定义二进制都用", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q5"}] }
+      ],
+      "interview_points": [
+        { "text": "**面试模板**: \"TCP 是字节流没天然消息边界, 应用层会出现粘包拆包. 解法本质是自定义协议边界 — 固定长度 / 特殊分隔符 / length-field (消息头带 body 长度). RPC 框架和自定义二进制协议一般用 '固定头 + 长度字段 + 消息体'.\"", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q5 模板"}] }
+      ]
+    }
+  },
+  {
+    "title": "长连接 vs 短连接",
+    "aliases": ["keep-alive", "长短连接"],
+    "topic_ids": ["3.1", "3.2"],
+    "slots": {
+      "comparison": [
+        { "text": "**短连接**: 每次请求新建 TCP 连接, 请求结束关闭. 简单但建连/断连开销大, 不适合高频请求.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q7"}] },
+        { "text": "**长连接**: 一个 TCP 连接复用多个请求, 不立即关. 减少握手挥手开销 + 降延迟 + 提吞吐. HTTP/1.1 默认 keep-alive, HTTP/2 进一步多路复用.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q7"}] }
+      ],
+      "interview_points": [
+        { "text": "**面试模板**: \"短连接一请求一 TCP 连接, 简单但开销大. 长连接同连接复用多请求, 减建连断连成本降延迟提吞吐. 高并发后端服务优先长连接 (DB 连接池 / RPC 连接池 / HTTP keep-alive), 但长连接占连接资源, 需要心跳/超时/连接池管理.\"", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q7 模板"}] }
+      ]
+    }
+  },
+  {
+    "title": "RPC vs REST",
+    "aliases": ["RPC REST 对比", "gRPC"],
+    "topic_ids": ["6.2"],
+    "slots": {
+      "comparison": [
+        { "text": "**REST**: 资源风格, 基于 HTTP. URL 表资源 + HTTP 方法 (GET/POST/PUT/DELETE) 表操作, 通常 JSON. 易理解, 跨语言跨平台. 适合对外开放 API / 前后端交互.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q8"}] },
+        { "text": "**RPC**: 远程过程调用, 像调用本地函数一样调远程服务. 关注'调方法'不是'操作资源'. 配合 Protobuf + HTTP/2 性能高接口强类型. 适合微服务内部调用 / 高频低延迟场景.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q8"}] }
+      ],
+      "use_cases": [
+        { "text": "**直观对比**:\n- REST: `GET /users/123`\n- RPC: `GetUser(user_id=123)`\nREST 像'访问资源', RPC 像'调用函数'.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q8"}] },
+        { "text": "**实践**: 很多系统两者并存 — 外部网关 REST API, 内部微服务 gRPC.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q8"}] }
+      ]
+    }
+  },
+  {
+    "title": "负载均衡",
+    "aliases": ["Load Balancing", "LB", "L4 LB", "L7 LB"],
+    "topic_ids": ["3.3", "6.3"],
+    "slots": {
+      "definition": [
+        { "text": "把请求分发到多个服务实例上, 避免单点压力, 提吞吐+可用性, 横向扩展.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ],
+      "mechanism": [
+        { "text": "**常见策略**:\n- Round Robin 轮询\n- Random 随机\n- Least Connections 最少连接\n- Hash 一致性哈希\n- 加权 (按实例性能)", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ],
+      "comparison": [
+        { "text": "**L4 vs L7 LB**:\n- **L4** (传输层): 按 IP+端口转发. LVS / F5 / AWS NLB. 性能高, 不看 payload\n- **L7** (应用层): 按 URL/Host/Header 转发. Nginx / HAProxy / AWS ALB / Envoy. 灵活但性能略低", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ]
+    }
+  },
+  {
+    "title": "服务发现",
+    "aliases": ["Service Discovery", "Consul", "Eureka", "etcd"],
+    "topic_ids": ["6.2", "9.3"],
+    "slots": {
+      "definition": [
+        { "text": "让服务知道'我该调用谁、去哪里找对方实例'. 微服务中实例经常变 (扩容/缩容/重启/IP 改变), 没服务发现调用方不知道 target 实例.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ],
+      "comparison": [
+        { "text": "**两种模式**:\n1. **客户端发现**: client 先查注册中心 'user-service 哪些实例?', 自己选一个发请求. Netflix Eureka.\n2. **服务端发现**: client 调 LB, LB 查注册中心选实例. AWS ELB + Route 53 / K8s Service.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ],
+      "interview_points": [
+        { "text": "**典型注册中心**: Consul (HashiCorp) / etcd (CoreOS) / ZooKeeper / Eureka (Netflix) / Nacos (Alibaba).\n核心能力: 服务注册 / 健康检查 / 服务列表查询 / 配置管理.", "cites": [{"source_id": "sde-fundamentals-notes", "locator": "Q9"}] }
+      ]
+    }
+  },
+
+  {
+    "title": "Bias-Variance Trade-off",
+    "aliases": ["偏差方差", "bias variance tradeoff"],
+    "topic_ids": ["12.3"],
+    "slots": {
+      "definition": [
+        { "text": "**泛化误差 = bias² + variance + noise**\n- **Bias**: 模型假设过强导致的系统性误差 (模型不够强 → 欠拟合)\n- **Variance**: 模型对训练数据扰动的敏感程度 (模型太敏感 → 过拟合)", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§1.2"}] }
+      ],
+      "comparison": [
+        { "text": "**互相制约**:\n- 高 bias → 欠拟合\n- 高 variance → 过拟合 (对噪声敏感)\n- 增加模型复杂度 → bias ↓, variance ↑\n- Regularization / early stopping / dropout 本质都在降 variance", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§1.2"}] }
+      ],
+      "interview_points": [
+        { "text": "**结论**: 数据量小 + 噪声大时, 宁可牺牲一点 bias 换更低 variance (用简单模型 + 强正则).", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§1.2"}] }
+      ]
+    }
+  },
+  {
+    "title": "Generative vs Discriminative",
+    "aliases": ["生成模型 判别模型", "generative discriminative"],
+    "topic_ids": ["12.1"],
+    "slots": {
+      "comparison": [
+        { "text": "**Generative**: 建模 P(x,y) 或 P(x|y)\n- 能生成数据 (sample)\n- 例: Naive Bayes / GMM / HMM / Diffusion / GAN", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§3"}] },
+        { "text": "**Discriminative**: 直接建模 P(y|x) 或 decision boundary\n- 分类性能通常更好\n- 例: Logistic Regression / SVM / Random Forest / Neural Network", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§3"}] }
+      ],
+      "interview_points": [
+        { "text": "**选择**: 只关心分类 + 数据够 → discriminative; 想生成 / 半监督 / 缺失值填补 → generative.\nBayes 公式 P(y|x) = P(x|y)P(y)/P(x) 把生成转判别, 但 generative 估的更多 (需要学整个 joint 分布).", "cites": [] }
+      ]
+    }
+  },
+  {
+    "title": "ROC vs PR Curve",
+    "aliases": ["AUC PR-AUC", "ROC curve", "PR curve"],
+    "topic_ids": ["12.3"],
+    "slots": {
+      "comparison": [
+        { "text": "**ROC**: TPR (= Recall) vs FPR, 阈值从 0→1 扫描. **AUC** 含义: 随机选一个正样本, 其得分高于随机负样本的概率. AUC=0.5 随机, AUC=1 完美排序.\n优点: 与阈值无关 / 适合 ranking / 类别比例变化不敏感 (优点也是坑)", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.4"}] },
+        { "text": "**PR**: Precision vs Recall. **PR-AUC** 强调正类预测质量, 在正类稀少时比 ROC 更真实.", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.5"}] }
+      ],
+      "interview_points": [
+        { "text": "**口诀**: 类别极度不平衡 → PR-AUC; 关心整体排序能力 → AUC.\n例: 1% 欺诈 + 99% 正常, AUC 可能虚高 (负样本太多, 排序错也不显著); PR 直接显示在'抓欺诈'上多准多全.", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.5"}] }
+      ]
+    }
+  },
+  {
+    "title": "Bagging vs Boosting",
+    "aliases": ["bagging boosting", "random forest 原理", "ensemble"],
+    "topic_ids": ["12.1"],
+    "slots": {
+      "comparison": [
+        { "text": "**Bagging**: 并行训练. Bootstrap sampling (有放回采样) 让每个 weak learner 看不同 subset, 投票/平均合并. 降 variance, 抗过拟合. → **Random Forest**\n\n**Boosting**: 串行训练. 用全部数据训每个 learner, 但前一轮误分样本权重加大, 后续 learner 更关注难样本. 降 bias 提精度但易过拟合. → **GBDT / XGBoost / LightGBM**", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§6.3"}] }
+      ],
+      "interview_points": [
+        { "text": "**Random Forest 为什么防过拟合**:\n1. 样本随机 (bootstrap)\n2. 特征随机 (每棵树每次分裂随机选 √d 个特征)\n3. 多棵独立树投票/平均, 大数定律降 variance\n相比单棵决策树容易过拟合, RF 即使每棵都不剪枝整体也稳.", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§6.3"}] }
+      ]
+    }
+  },
+  {
+    "title": "K-means",
+    "aliases": ["kmeans", "K均值聚类"],
+    "topic_ids": ["12.2"],
+    "slots": {
+      "definition": [
+        { "text": "无监督聚类, 目标函数最小化簇内点到簇中心的距离平方和:\n**∑ᵢ ‖xᵢ − μ_{cᵢ}‖²**", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.1"}] }
+      ],
+      "mechanism": [
+        { "text": "**步骤**: 初始化 K 个中心 → 每点分配到最近中心 → 更新中心为本簇均值 → 重复直到收敛.\n性质: 一定收敛, 但只到 **局部最优** (目标函数非凸 + 贪心更新).", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.1"}] }
+      ],
+      "interview_points": [
+        { "text": "**局部最优问题**:\n- 当前分配下无法再降 loss, 但不是全局最佳\n- 解决: 多次随机初始化取最优 / **K-means++** (智能初始化, 选已选中心远的点当新中心)", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.2"}] },
+        { "text": "**K-means = GMM (Gaussian Mixture Model) 的 hard assignment 特例**.\nGMM 用 EM 算法训, soft assign (每点对每簇有概率), 协方差矩阵自由可学椭圆形簇.\nK-means 协方差=I (球形簇) + hard assign.", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§5.3"}] }
+      ]
+    }
+  },
+  {
+    "title": "Backpropagation",
+    "aliases": ["反向传播", "BP 算法"],
+    "topic_ids": ["13.1"],
+    "slots": {
+      "definition": [
+        { "text": "高效计算神经网络中各参数梯度的算法, 基于链式法则 (Chain Rule).", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§7.2"}] }
+      ],
+      "mechanism": [
+        { "text": "**核心思想**:\n1. 从 loss 开始\n2. 梯度从输出层逐层向前传播 (∂L/∂w_l = ∂L/∂a_l · ∂a_l/∂w_l)\n3. 每一层复用中间梯度 (避免重复计算)\n4. 计算复杂度 O(参数数) ≈ 一次 forward", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§7.2"}] }
+      ],
+      "interview_points": [
+        { "text": "**作用**: 使深层网络可通过梯度下降更新参数. 没有 BP 训不动深网, 这是 80 年代提出但 GPU 时代才能玩.\n**手算 BP**: 经典面试题, MLP 1 隐层 + Sigmoid + MSE 的导数推导一定要会写.", "cites": [] }
+      ]
+    }
+  },
+  {
+    "title": "权重初始化",
+    "aliases": ["Xavier 初始化", "He 初始化", "Weight Init"],
+    "topic_ids": ["13.1"],
+    "slots": {
+      "definition": [
+        { "text": "**不能全 0 初始化**: 所有神经元对称, 学到完全相同特征, 网络等价于只有一个神经元 ('对称性问题').", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§7.4"}] }
+      ],
+      "comparison": [
+        { "text": "**Xavier / Glorot** (Sigmoid/Tanh 用): w ~ U[-√(6/(fan_in+fan_out)), √(6/(fan_in+fan_out))]\n  目的: 保持前向/反向方差稳定, 防止梯度消失/爆炸\n\n**He / Kaiming** (ReLU 用): w ~ N(0, 2/fan_in)\n  原因: ReLU 把负半轴 kill 掉 (期望 50% 输出为 0), 方差减半, 需要乘 2 补回\n\n**LeCun**: 1/fan_in, SELU 配套", "cites": [] }
+      ],
+      "interview_points": [
+        { "text": "**口诀**: Sigmoid/Tanh → Xavier; ReLU 系 → He; 默认 PyTorch nn.Linear 用 Kaiming uniform, 一般不用动.\nTransformer 大模型用更精细的 init (scaled init / DeepNorm), 关系训练稳定性.", "cites": [] }
+      ]
+    }
+  },
+
+  {
+    "title": "Lasso vs Ridge",
+    "aliases": ["Lasso 回归", "Ridge 回归", "岭回归"],
+    "topic_ids": ["12.1"],
+    "slots": {
+      "definition": [
+        { "text": "**Lasso = Linear Regression + L1 正则** (λ Σ |w_i|)\n  最小二乘 + L1 ⇔ Laplace prior 下的 MAP\n  产生稀疏解 (自动特征选择), 无解析解\n\n**Ridge = Linear Regression + L2 正则** (λ Σ w_i²)\n  最小二乘 + L2 ⇔ Gaussian prior 下的 MAP\n  权重稳定 (对共线特征友好), 有解析解, 不稀疏", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§2.4"}] }
+      ],
+      "comparison": [
+        { "text": "**直觉**: L1 估 median (鲁棒), L2 估 mean (怕异常值).", "cites": [{"source_id": "ml-fundamentals-notes", "locator": "§2.1"}] },
+        { "text": "**ElasticNet = L1 + L2**: 兼有稀疏性 (L1) 和稳定性 (L2), 强相关特征 group selection.", "cites": [] }
+      ]
+    }
+  }
+]
